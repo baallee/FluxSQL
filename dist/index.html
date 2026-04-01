@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>FluxSQL — AI 建表工坊</title>
 <style>
+<style>
   :root {
     --bg: #0f1117;
     --surface: #1a1d27;
@@ -685,198 +686,15 @@
   .diff-field-table .new-val { color: var(--green); font-weight: 600; }
   .diff-field-table .unchanged { color: var(--text3); }
 </style>
+</style>
 </head>
 <body>
 
-<!-- 顶栏 -->
-<div class="topbar">
-  <h1>⚡ FluxSQL</h1>
-  <div class="topbar-sep"></div>
-  <label class="btn btn-primary" style="cursor:pointer" id="openFileLabel">
-    📂 打开 SQL 文件
-    <input type="file" accept=".sql,.txt" id="fileInput" style="display:none">
-  </label>
-  <button class="btn btn-ghost" onclick="addNewTable()" id="btnNewTable">＋ 新建表</button>
-  <button class="btn btn-ai" onclick="openNewDbModal()" id="btnNewDb" style="margin-left:2px">🏗 新建库</button>
-  <span class="db-mode-badge" id="dbModeBadge">✨ 新建库模式</span>
-  <div class="spacer"></div>
-  <span class="dialect-label">方言</span>
-  <div class="dialect-selector" id="dialectSelector">
-    <button class="dialect-btn active" data-dialect="oracle" onclick="switchDialect('oracle')">Oracle</button>
-    <button class="dialect-btn" data-dialect="mysql" onclick="switchDialect('mysql')">MySQL</button>
-    <button class="dialect-btn" data-dialect="postgresql" onclick="switchDialect('postgresql')">PostgreSQL</button>
-    <button class="dialect-btn" data-dialect="sqlserver" onclick="switchDialect('sqlserver')">SQL Server</button>
-  </div>
-  <div class="topbar-sep"></div>
-  <span class="file-info" id="fileInfo">未加载文件</span>
-  <div class="topbar-sep"></div>
-  <button class="btn btn-ai" onclick="openApiModal()">🤖 AI 设置</button>
-  <button class="btn btn-ghost" onclick="copyAllSQL()">📋 复制全部</button>
-  <button class="btn btn-success" onclick="downloadSQL()">💾 导出 .sql</button>
-</div>
-
-<!-- 主体 -->
-<div class="main">
-
-  <!-- 左侧：表列表 -->
-  <div class="sidebar" id="sidebar">
-    <div class="sidebar-header">
-      <span>数据表 <span class="badge" id="tableCount">0</span></span>
-    </div>
-    <div class="table-list" id="tableList">
-      <div class="empty-state" style="margin-top:30px">
-        <div class="icon">📁</div>
-        <p>打开 SQL 文件</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- 左侧分隔条 -->
-  <div class="sidebar-resizer" id="sidebarResizer"></div>
-
-  <!-- 中间：字段编辑区 -->
-  <div class="editor-panel" id="editorPanel">
-    <div class="empty-state">
-      <div class="icon">🗃️</div>
-      <p>选择左侧的表开始编辑</p>
-      <p style="font-size:12px">或点击「打开 SQL 文件」加载现有脚本</p>
-    </div>
-  </div>
-
-  <!-- 分割线 -->
-  <div class="resizer" id="resizer"></div>
-
-  <!-- 右侧：SQL 预览 -->
-  <div class="preview-panel" id="previewPanel">
-    <div class="preview-header">
-      <span class="preview-title">SQL 预览</span>
-      <div class="preview-mode-tabs">
-        <button class="tab-btn active" id="tab-current" onclick="setPreviewMode('current')">当前表</button>
-        <button class="tab-btn" id="tab-all" onclick="setPreviewMode('all')">全部</button>
-        <button class="tab-btn" id="tab-history" onclick="setPreviewMode('history')">历史</button>
-      </div>
-      <div class="spacer"></div>
-      <span class="badge" id="dialectBadge" style="cursor:default">Oracle</span>
-      <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px" id="copyBtn" onclick="copyCurrent()">复制</button>
-      <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;margin-left:4px" id="validateBtn" onclick="runValidation()" title="校验 SQL 语法">🔍 校验</button>
-    </div>
-    <div class="validation-panel" id="validationPanel" style="display:none"></div>
-    <div class="sql-preview" id="sqlPreview">
-      <span style="color:var(--text3);font-style:italic">-- 选择表后这里显示生成的 SQL</span>
-    </div>
-    <div class="history-panel" id="historyPanel" style="display:none">
-      <div class="history-toolbar">
-        <span style="font-size:12px;font-weight:700;color:var(--text3);letter-spacing:.5px">版本历史</span>
-        <div class="spacer"></div>
-        <button class="snap-btn" style="padding:3px 10px;font-size:11px" onclick="saveSnapshot()" title="保存当前状态为快照">📸 保存快照</button>
-        <button class="snap-btn" style="padding:3px 10px;font-size:11px" onclick="clearAllHistory()" title="清空所有历史">🗑 清空</button>
-      </div>
-      <div class="history-tree" id="historyTree">
-        <div style="color:var(--text3);font-size:12px;text-align:center;padding:30px 0">暂无变更记录</div>
-      </div>
-    </div>
-  </div>
-
-</div>
-
-<!-- API Key 配置弹窗 -->
-<div class="modal-overlay hidden" id="apiModal">
-  <div class="modal">
-    <h2>🤖 AI 助手配置</h2>
-    <p>配置后可在表编辑区用自然语言修改表结构，AI 会直接修改当前表的字段。</p>
-    <label>API 提供商</label>
-    <select id="apiProvider" onchange="onProviderChange()">
-      <option value="openai">OpenAI（ChatGPT）</option>
-      <option value="deepseek">DeepSeek</option>
-      <option value="zhipu">智谱 GLM</option>
-      <option value="qwen">阿里通义千问</option>
-      <option value="custom">自定义 (OpenAI 兼容)</option>
-    </select>
-    <label>API Key</label>
-    <input type="password" id="apiKey" placeholder="sk-..." autocomplete="off">
-    <label>API Base URL <span style="color:var(--text3);font-weight:400">（自定义时填写）</span></label>
-    <input type="text" id="apiBase" placeholder="https://api.openai.com/v1">
-    <label>模型</label>
-    <input type="text" id="apiModel" placeholder="gpt-4o-mini">
-    <p class="modal-hint">API Key 仅存储在本地浏览器中，不会上传任何服务器。<br>建议使用有足够权限的 Key，对话内容仅含当前表结构。</p>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeApiModal()">取消</button>
-      <button class="btn btn-ai" onclick="testApi()">测试连接</button>
-      <button class="btn btn-primary" onclick="saveApiConfig()">保存</button>
-    </div>
-  </div>
-</div>
-
-<!-- 新建库弹窗 -->
-<div class="modal-overlay hidden db-modal" id="newDbModal">
-  <div class="modal">
-    <h2>🏗 新建数据库</h2>
-    <p>从零开始创建多张数据表。选择建表方式后开始：</p>
-
-    <div class="db-mode-cards">
-      <div class="db-mode-card" id="dbCardAi" onclick="selectDbMode('ai')">
-        <div class="card-icon">🤖</div>
-        <div class="card-title">AI 智能建表</div>
-        <div class="card-desc">用自然语言描述业务需求<br>AI 自动生成多张表结构</div>
-      </div>
-      <div class="db-mode-card" id="dbCardManual" onclick="selectDbMode('manual')">
-        <div class="card-icon">✏️</div>
-        <div class="card-title">手动建表</div>
-        <div class="card-desc">逐张创建表并定义字段<br>适合精确控制结构</div>
-      </div>
-    </div>
-
-    <!-- AI 建表输入区 -->
-    <div class="db-ai-section" id="dbAiSection">
-      <textarea class="db-ai-textarea" id="dbAiInput" placeholder="例如：&#10;一个电商系统，需要用户表、商品表、订单表、订单明细表。&#10;用户表包含账号、密码、昵称、手机号、注册时间。&#10;订单表关联用户和商品，记录下单时间、金额、状态。" onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();dbAiGenerate()}"></textarea>
-      <div class="db-ai-hint">💡 描述越详细，生成的表结构越精确。AI 将根据当前方言（<span id="dbAiDialect">Oracle</span>）生成合适的字段类型。按 Ctrl+Enter 快速生成。</div>
-    </div>
-
-    <!-- 手动建表区 -->
-    <div class="db-manual-section" id="dbManualSection">
-      <div class="db-create-row">
-        <input class="db-create-input" id="dbNewTableName" placeholder="输入表名，如 USER_INFO" spellcheck="false" onkeydown="if(event.key==='Enter')dbManualCreate()">
-        <button class="btn btn-primary" onclick="dbManualCreate()">创建表</button>
-      </div>
-      <div class="db-created-list" id="dbCreatedList"></div>
-    </div>
-
-    <!-- AI 建表进度面板 -->
-    <div class="db-ai-progress" id="dbAiProgress">
-      <div class="progress-header">
-        <div class="progress-spinner"></div>
-        <span class="progress-text" id="dbAiProgressText">准备发送请求...</span>
-        <span class="progress-elapsed" id="dbAiProgressTime"></span>
-      </div>
-      <div class="progress-steps" id="dbAiProgressSteps">
-        <div class="progress-step" id="dbAiStep1"><span class="step-icon">⏳</span><span>发送请求到 AI</span></div>
-        <div class="progress-step" id="dbAiStep2"><span class="step-icon">⏳</span><span>AI 分析需求并生成表结构</span></div>
-        <div class="progress-step" id="dbAiStep3"><span class="step-icon">⏳</span><span>解析和验证结果</span></div>
-      </div>
-      <div class="progress-error" id="dbAiProgressError">
-        <div id="dbAiErrorMsg"></div>
-        <div class="error-actions">
-          <button class="btn btn-ai" onclick="dbAiGenerate()">🔄 重试</button>
-          <button class="btn btn-ghost" onclick="resetDbAiProgress()">取消</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="closeNewDbModal()">取消</button>
-      <button class="btn btn-ai" id="dbAiGenBtn" onclick="dbAiGenerate()" style="display:none">🤖 AI 生成</button>
-      <button class="btn btn-success" id="dbConfirmBtn" onclick="confirmNewDb()" style="display:none">✓ 确认并进入编辑</button>
-    </div>
-  </div>
-</div>
-
-<div class="toast" id="toast"></div>
-
 <script>
-// ══════════════════════════════════════════
-// 方言引擎 — FluxSQL 核心
-// ══════════════════════════════════════════
-let currentDialect = 'oracle';
+
+
+// ========== config.js ==========
+// FluxSQL - 方言配置模块
 
 const DIALECTS = {
   oracle: {
@@ -1184,6 +1002,16 @@ const DIALECTS = {
   },
 };
 
+// ========== utils.js ==========
+// FluxSQL - 工具函数模块
+function uid() { return Math.random().toString(36).slice(2, 9); }
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 100) + 'px'; }
+function showToast(msg) { const t=document.getElementById('toast'); t.textContent=msg; t.style.display='block'; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.style.display='none',3000); }
+
+// ========== dialect.js ==========
+// FluxSQL - 方言切换模块
 function getDialect() { return DIALECTS[currentDialect]; }
 
 function switchDialect(dialect) {
@@ -1212,370 +1040,407 @@ function rebuildTypeList() {
   document.body.appendChild(dl);
 }
 
-// ══════════════════════════════════════════
-// 变更追踪引擎
-// ══════════════════════════════════════════
-let changeLog = [];       // 操作日志
-let snapshots = [];       // 快照列表
-let snapshotCounter = 0;
-
-function now() {
-  const d = new Date();
-  return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0') + ':' + d.getSeconds().toString().padStart(2,'0');
-}
-
-function logAction(type, detail) {
-  changeLog.push({ time: now(), type, detail, ts: Date.now() });
-  if (previewMode === 'history') renderHistoryPanel();
-}
-
-// 深拷贝 tables 快照
-function cloneTables() { return JSON.parse(JSON.stringify(tables)); }
-
-function saveSnapshot() {
-  snapshotCounter++;
-  const snap = {
-    id: snapshotCounter,
-    label: `快照 #${snapshotCounter}`,
-    time: now(),
-    data: cloneTables(),
-    tableCount: tables.length,
-    logIndex: changeLog.length,  // 该快照对应的日志位置
-  };
-  snapshots.push(snap);
-  logAction('snapshot', `保存 ${snap.label}（${snap.tableCount} 张表）`);
-  renderHistoryPanel();
-  showToast(`${snap.label} 已保存 ✓`);
-}
-
-function restoreSnapshot(snapId) {
-  if (!confirm(`确认恢复到 ${snapshots.find(s=>s.id===snapId)?.label}？\n当前未保存的变更会丢失。`)) return;
-  const snap = snapshots.find(s => s.id === snapId);
-  if (!snap) return;
-  tables = JSON.parse(JSON.stringify(snap.data));
-  aiHistories = {};
-  activeIdx = tables.length > 0 ? 0 : -1;
-  renderTableList(); renderEditor(); updatePreview();
-  logAction('restore', `恢复到 ${snap.label}`);
-  edgeCache = {};
-  expandedEdge = null;
-  renderHistoryPanel();
-  showToast(`已恢复到 ${snap.label}`);
-}
-
-function deleteSnapshot(snapId) {
-  if (!confirm('确认删除该快照？')) return;
-  snapshots = snapshots.filter(s => s.id !== snapId);
-  // 清理关联缓存
-  edgeCache = {};
-  expandedEdge = null;
-  renderHistoryPanel();
-  showToast('快照已删除');
-}
-
-function clearAllHistory() {
-  if (!confirm('确认清空所有操作日志和快照？此操作不可恢复。')) return;
-  changeLog = []; snapshots = []; snapshotCounter = 0;
-  expandedEdge = null;
-  renderHistoryPanel();
-  showToast('历史已清空');
-}
-
-// ── 边缘缓存：预计算相邻快照间的变更摘要 ──
-let edgeCache = {};
-
-function getEdgeSummary(snapA, snapB) {
-  const key = `${snapA.id}-${snapB.id}`;
-  if (edgeCache[key]) return edgeCache[key];
-
-  const diff = computeDiff(snapA.data, snapB.data);
-  let added = 0, removed = 0, modified = 0;
-  let fieldAdded = 0, fieldRemoved = 0, fieldModified = 0;
-
-  diff.forEach(d => {
-    if (d.status === 'added') { added++; fieldAdded += d.table.fields.length; }
-    else if (d.status === 'removed') { removed++; fieldRemoved += d.table.fields.length; }
-    else if (d.status === 'modified') {
-      modified++;
-      d.fieldChanges.forEach(fc => {
-        if (fc.status === 'added') fieldAdded++;
-        else if (fc.status === 'removed') fieldRemoved++;
-        else fieldModified++;
-      });
-    }
-  });
-
-  const hasChanges = added + removed + modified > 0;
-  const summary = { added, removed, modified, fieldAdded, fieldRemoved, fieldModified, hasChanges, diff };
-  edgeCache[key] = summary;
-  return summary;
-}
-
-// ── 展开的边 ──
-let expandedEdge = null; // "snapAId-snapBId"
-
-function toggleEdge(snapAId, snapBId) {
-  const key = `${snapAId}-${snapBId}`;
-  if (expandedEdge === key) {
-    expandedEdge = null;
-  } else {
-    expandedEdge = key;
-  }
-  renderHistoryPanel();
-}
-
-// ── 版本树渲染 ──
-function renderHistoryPanel() {
-  const tree = document.getElementById('historyTree');
-  if (!changeLog.length && !snapshots.length) {
-    tree.innerHTML = '<div style="color:var(--text3);font-size:12px;text-align:center;padding:30px 0">暂无变更记录</div>';
-    return;
-  }
-
-  const iconMap = {
-    'add-field': '➕', 'del-field': '➖', 'mod-field': '✏️',
-    'add-table': '📋', 'del-table': '🗑️', 'mod-table': '✏️',
-    'ai-modify': '🤖', 'snapshot': '📸', 'restore': '⏪',
-    'import': '📂', 'sort': '↕️', 'system-fields': '⚙️',
-  };
-
-  let html = '';
-
-  // 1. 根节点（文件导入/初始状态）
-  const firstLog = changeLog[0];
-  if (firstLog) {
-    html += `<div class="tree-root">
-      <div class="tree-root-dot"></div>
-      <div class="tree-root-info">${firstLog.time} · ${snapshots.length ? snapshots[0].tableCount + ' 张表' : ''}</div>
-    </div>`;
-  } else if (snapshots.length) {
-    html += `<div class="tree-root">
-      <div class="tree-root-dot"></div>
-      <div class="tree-root-info">${snapshots[0].time} · ${snapshots[0].tableCount} 张表</div>
-    </div>`;
-  }
-
-  // 2. 将日志分配到各个快照段
-  // 段0: 根→快照1, 段1: 快照1→快照2, ..., 段N: 最后快照→现在
-  let segments = [];
-  for (let i = 0; i <= snapshots.length; i++) {
-    const startLogIdx = i === 0 ? 0 : snapshots[i - 1].logIndex;
-    const endLogIdx = i < snapshots.length ? snapshots[i].logIndex : changeLog.length;
-    const logs = changeLog.slice(startLogIdx, endLogIdx);
-    segments.push({
-      snapA: i > 0 ? snapshots[i - 1] : null,
-      snapB: i < snapshots.length ? snapshots[i] : null,
-      logs,
-      isFirst: i === 0,
-      isLast: i === snapshots.length,
-    });
-  }
-
-  segments.forEach((seg, segIdx) => {
-    const hasSnapB = !!seg.snapB;
-    const isLastSegment = seg.isLast;
-
-    // 渲染该段的日志（不包含 snapshot 和 restore 类型的）
-    const filteredLogs = seg.logs.filter(l => l.type !== 'snapshot' && l.type !== 'restore');
-    filteredLogs.forEach(log => {
-      html += `<div class="tree-log">
-        <div class="tree-log-dot"></div>
-        <span class="tree-log-time">${log.time}</span>
-        <span class="tree-log-icon">${iconMap[log.type] || '📝'}</span>
-        <span class="tree-log-text">${log.detail}</span>
-      </div>`;
-    });
-
-    // 如果不是最后一段，渲染快照节点 + 连线到下一段
-    if (hasSnapB) {
-      const snap = seg.snapB;
-      const nextSeg = segments[segIdx + 1];
-      const hasNext = nextSeg && nextSeg.snapB;
-
-      // 连线到下一个快照（带变更摘要徽章）
-      if (hasNext) {
-        const summary = getEdgeSummary(snap, nextSeg.snapB);
-        const edgeKey = `${snap.id}-${nextSeg.snapB.id}`;
-        const isExpanded = expandedEdge === edgeKey;
-
-        // 渲染连线 + 徽章
-        const lineCls = summary.hasChanges ? 'has-changes' : 'no-changes';
-        let badgeHtml = '';
-        if (summary.hasChanges) {
-          let parts = [];
-          if (summary.added) parts.push(`<span class="tree-edge-count add">+${summary.added}表</span>`);
-          if (summary.removed) parts.push(`<span class="tree-edge-count del">-${summary.removed}表</span>`);
-          if (summary.modified) parts.push(`<span class="tree-edge-count mod">~${summary.modified}表</span>`);
-          // 字段级摘要
-          let fieldParts = [];
-          if (summary.fieldAdded) fieldParts.push(`<span class="tree-edge-count field-add">+${summary.fieldAdded}字段</span>`);
-          if (summary.fieldRemoved) fieldParts.push(`<span class="tree-edge-count field-del">-${summary.fieldRemoved}字段</span>`);
-          if (summary.fieldModified) fieldParts.push(`<span class="tree-edge-count field-mod">~${summary.fieldModified}字段</span>`);
-          if (fieldParts.length) parts.push(fieldParts.join(''));
-          badgeHtml = parts.join(' ');
-        } else {
-          badgeHtml = '无变更';
-        }
-
-        html += `<div class="tree-edge" style="min-height:28px">
-          <div class="tree-edge-line ${lineCls}"></div>
-          <div class="tree-edge-badge ${summary.hasChanges ? 'has-changes' : 'no-changes'}"
-               onclick="toggleEdge(${snap.id},${nextSeg.snapB.id})"
-               title="${summary.hasChanges ? '点击查看差异详情' : '两次快照间无差异'}">
-            ${isExpanded ? '▲' : '▼'} ${badgeHtml}
-          </div>
-        </div>`;
-      }
-
-      // 快照节点
-      html += `<div class="tree-snap">
-        ${!isLastSegment && segments[segIdx + 1] ? '' : ''}<!-- 节点竖线由上一个连线覆盖 -->
-        <div class="tree-snap-dot"></div>
-        <div class="tree-snap-content">
-          <div class="tree-snap-header">
-            <span class="tree-snap-label" onclick="restoreSnapshot(${snap.id})" title="点击恢复到此版本">${snap.label}</span>
-            <span class="tree-snap-time">${snap.time}</span>
-          </div>
-          <div class="tree-snap-meta">📋 ${snap.tableCount} 张表</div>
-          <div class="tree-snap-actions">
-            <button class="snap-btn restore" onclick="restoreSnapshot(${snap.id})">⏪ 恢复</button>
-            <button class="snap-btn del" onclick="deleteSnapshot(${snap.id})">🗑 删除</button>
-          </div>
-        </div>
-      </div>`;
-
-      // 如果这个边展开了，渲染 diff 详情
-      if (hasNext && expandedEdge === `${snap.id}-${nextSeg.snapB.id}`) {
-        const summary = getEdgeSummary(snap, nextSeg.snapB);
-        if (summary.hasChanges) {
-          html += renderDiffInline(snap, nextSeg.snapB, summary);
-        }
-      }
-    }
-  });
-
-  tree.innerHTML = html;
-
-  // 自动滚动到最新内容（如果是追加而非切换）
-  if (tree.scrollTop + tree.clientHeight >= tree.scrollHeight - 60) {
-    tree.scrollTop = tree.scrollHeight;
-  }
-}
-
-// ── 内联 diff 渲染 ──
-function renderDiffInline(snapA, snapB, summary) {
-  const diff = summary.diff;
-  let html = `<div style="margin:4px 0 8px 24px;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface);animation:fadeIn .15s ease">`;
-
-  diff.forEach(d => {
-    const tagClass = d.status === 'added' ? 'added' : d.status === 'removed' ? 'removed' : d.status === 'modified' ? 'modified' : 'unchanged';
-    const tagText = d.status === 'added' ? '新增' : d.status === 'removed' ? '删除' : d.status === 'modified' ? '修改' : '无变更';
-    html += `<div class="diff-table-group"><div class="diff-table-header">`;
-    html += `<span class="diff-tag ${tagClass}">${tagText}</span>`;
-    if (d.nameChanged) html += `<span class="old-val">${escHtml(d.oldTable.name)}</span> → <span class="new-val">${escHtml(d.table.name)}</span>`;
-    else html += escHtml(d.table.name);
-    if (d.commentChanged) html += ` <span style="color:var(--text3);font-size:11px;font-weight:400">（注释变更）</span>`;
-    html += `</div>`;
-
-    if (d.status === 'unchanged') {
-      html += `<div style="padding:6px 12px;font-size:11px;color:var(--text3)">无字段变更</div>`;
-    } else {
-      html += `<table class="diff-field-table"><thead><tr><th>字段名</th><th>类型</th><th>NULL</th><th>PK</th><th>默认值</th><th>注释</th></tr></thead><tbody>`;
-      if (d.status === 'modified') {
-        d.fieldChanges.forEach(fc => {
-          if (fc.status === 'added') {
-            html += `<tr class="row-add"><td>+ ${escHtml(fc.field.name)}</td><td>${escHtml(fc.field.type)}</td><td>${fc.field.nullable?'YES':'NO'}</td><td>${fc.field.pk?'✓':''}</td><td>${escHtml(fc.field.defaultVal)||'—'}</td><td>${escHtml(fc.field.comment)||'—'}</td></tr>`;
-          } else if (fc.status === 'removed') {
-            html += `<tr class="row-del"><td>- ${escHtml(fc.field.name)}</td><td>${escHtml(fc.field.type)}</td><td>${fc.field.nullable?'YES':'NO'}</td><td>${fc.field.pk?'✓':''}</td><td>${escHtml(fc.field.defaultVal)||'—'}</td><td>${escHtml(fc.field.comment)||'—'}</td></tr>`;
-          } else {
-            html += `<tr class="row-mod"><td>${escHtml(fc.field.name)}</td>`;
-            ['type','nullable','pk','defaultVal','comment'].forEach(key => {
-              const diffItem = fc.diffs.find(df => df.key === '类型' && key === 'type' || df.key === 'NULL' && key === 'nullable' || df.key === 'PK' && key === 'pk' || df.key === '默认值' && key === 'defaultVal' || df.key === '注释' && key === 'comment');
-              if (diffItem) {
-                html += `<td><span class="old-val">${escHtml(diffItem.old)}</span> → <span class="new-val">${escHtml(diffItem.new)}</span></td>`;
-              } else {
-                let display = key === 'nullable' ? (fc.field[key]?'YES':'NO') : key === 'pk' ? (fc.field[key]?'✓':'') : escHtml(fc.field[key]||'');
-                html += `<td class="unchanged">${display||'—'}</td>`;
-              }
-            });
-            html += `</tr>`;
-          }
-        });
-      } else if (d.status === 'added') {
-        d.table.fields.forEach(f => {
-          html += `<tr class="row-add"><td>${escHtml(f.name)}</td><td>${escHtml(f.type)}</td><td>${f.nullable?'YES':'NO'}</td><td>${f.pk?'✓':''}</td><td>${escHtml(f.defaultVal)||'—'}</td><td>${escHtml(f.comment)||'—'}</td></tr>`;
-        });
-      } else if (d.status === 'removed') {
-        d.table.fields.forEach(f => {
-          html += `<tr class="row-del"><td>${escHtml(f.name)}</td><td>${escHtml(f.type)}</td><td>${f.nullable?'YES':'NO'}</td><td>${f.pk?'✓':''}</td><td>${escHtml(f.defaultVal)||'—'}</td><td>${escHtml(f.comment)||'—'}</td></tr>`;
-        });
-      }
-      html += `</tbody></table>`;
-    }
-    html += `</div>`;
-  });
-
-  html += `</div>`;
-  return html;
-}
-function computeDiff(oldTables, newTables) {
+// ========== sql.js ==========
+// FluxSQL - SQL 生成解析模块
+function parseSQL(sql) {
   const result = [];
-  const oldMap = {};
-  oldTables.forEach(t => { oldMap[t.name.toUpperCase()] = t; });
-  const newMap = {};
-  newTables.forEach(t => { newMap[t.name.toUpperCase()] = t; });
-
-  const allNames = new Set([...Object.keys(oldMap), ...Object.keys(newMap)]);
-  allNames.forEach(name => {
-    const oldT = oldMap[name];
-    const newT = newMap[name];
-    if (!oldT) {
-      result.push({ table: newT, status: 'added' });
-    } else if (!newT) {
-      result.push({ table: oldT, status: 'removed' });
-    } else {
-      const fieldChanges = computeFieldDiff(oldT.fields, newT.fields);
-      const nameChanged = oldT.name !== newT.name;
-      const commentChanged = oldT.comment !== newT.comment;
-      if (fieldChanges.length > 0 || nameChanged || commentChanged) {
-        result.push({ table: newT, oldTable: oldT, status: 'modified', fieldChanges, nameChanged, commentChanged });
-      } else {
-        result.push({ table: newT, status: 'unchanged' });
-      }
-    }
-  });
+  sql = sql.replace(/\/\*[\s\S]*?\*\//g, '');
+  // CREATE TABLE
+  const createReg = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s*\(([\s\S]*?)\)\s*(?:ENGINE\s*=\s*\w+\s*)?(?:CHARSET\s*=\s*\w+\s*)?(?:COMMENT\s*=\s*'([^']*)')?\s*;/gi;
+  let m;
+  while ((m = createReg.exec(sql)) !== null) {
+    const t = { name: m[1], comment: m[3] || '', fields: parseFields(m[2]) };
+    // MySQL: 表注释在 CREATE TABLE 末尾
+    result.push(t);
+  }
+  // Oracle/PG: COMMENT ON TABLE
+  const tableCommentReg = /COMMENT\s+ON\s+TABLE\s+(\w+)\s+IS\s+'([^']*)'/gi;
+  while ((m = tableCommentReg.exec(sql)) !== null) {
+    const t = result.find(x => x.name.toUpperCase() === m[1].toUpperCase());
+    if (t && !t.comment) t.comment = m[2];
+  }
+  // Oracle/PG: COMMENT ON COLUMN
+  const colCommentReg = /COMMENT\s+ON\s+COLUMN\s+(\w+)\.(\w+)\s+IS\s+'([^']*)'/gi;
+  while ((m = colCommentReg.exec(sql)) !== null) {
+    const t = result.find(x => x.name.toUpperCase() === m[1].toUpperCase());
+    if (t) { const f = t.fields.find(f => f.name.toUpperCase() === m[2].toUpperCase()); if (f) f.comment = m[3]; }
+  }
+  // SQL Server: sp_addextendedproperty for table
+  const ssTableReg = /sp_addextendedproperty\s+'MS_Description',\s*N?'([^']*)',\s*'SCHEMA',\s*'(\w+)',\s*'TABLE',\s*'(\w+)'/gi;
+  while ((m = ssTableReg.exec(sql)) !== null) {
+    const t = result.find(x => x.name.toLowerCase() === m[3].toLowerCase());
+    if (t && !t.comment) t.comment = m[1];
+  }
+  // SQL Server: sp_addextendedproperty for column
+  const ssColReg = /sp_addextendedproperty\s+'MS_Description',\s*N?'([^']*)',\s*'SCHEMA',\s*'(\w+)',\s*'TABLE',\s*'(\w+)',\s*'COLUMN',\s*'(\w+)'/gi;
+  while ((m = ssColReg.exec(sql)) !== null) {
+    const t = result.find(x => x.name.toLowerCase() === m[3].toLowerCase());
+    if (t) { const f = t.fields.find(f => f.name.toLowerCase() === m[4].toLowerCase()); if (f) f.comment = m[1]; }
+  }
   return result;
 }
 
-function computeFieldDiff(oldFields, newFields) {
-  const changes = [];
-  const oldMap = {};
-  oldFields.forEach(f => { oldMap[f.name.toUpperCase()] = f; });
-  const newMap = {};
-  newFields.forEach(f => { newMap[f.name.toUpperCase()] = f; });
+function parseFields(body) {
+  const fields = [];
+  const lines = splitFields(body);
+  for (let raw of lines) {
+    raw = raw.trim();
+    if (!raw) continue;
+    // 剥离段首的纯注释行（保留内联注释中的字段定义）
+    raw = raw.replace(/^(?:--[^\n]*\n\s*)+/, '').trim();
+    if (!raw || raw.startsWith('--')) continue;
+    if (/^(CONSTRAINT|PRIMARY\s+KEY|UNIQUE|INDEX|KEY)\s/i.test(raw)) continue;
+    let lineComment = '';
+    const inlineM = raw.match(/--\s*(.*)/);
+    if (inlineM) { lineComment = inlineM[1].trim(); raw = raw.replace(/--.*/, '').trim(); }
+    // MySQL: COMMENT 'xxx'
+    let mySqlComment = '';
+    const commentM = raw.match(/\bCOMMENT\s+'([^']*)'\s*$/i);
+    if (commentM) { mySqlComment = commentM[1]; raw = raw.replace(/\bCOMMENT\s+'[^']*'\s*$/i, '').trim(); }
 
-  const allNames = new Set([...Object.keys(oldMap), ...Object.keys(newMap)]);
-  allNames.forEach(name => {
-    const oldF = oldMap[name];
-    const newF = newMap[name];
-    if (!oldF) {
-      changes.push({ field: newF, status: 'added' });
-    } else if (!newF) {
-      changes.push({ field: oldF, status: 'removed' });
-    } else {
-      const diffs = [];
-      if (oldF.type !== newF.type) diffs.push({ key: '类型', old: oldF.type, new: newF.type });
-      if (oldF.nullable !== newF.nullable) diffs.push({ key: 'NULL', old: oldF.nullable?'YES':'NO', new: newF.nullable?'YES':'NO' });
-      if (oldF.pk !== newF.pk) diffs.push({ key: 'PK', old: oldF.pk?'✓':'', new: newF.pk?'✓':'' });
-      if (oldF.defaultVal !== newF.defaultVal) diffs.push({ key: '默认值', old: oldF.defaultVal||'—', new: newF.defaultVal||'—' });
-      if (oldF.comment !== newF.comment) diffs.push({ key: '注释', old: oldF.comment||'—', new: newF.comment||'—' });
-      if (diffs.length > 0) changes.push({ field: newF, oldField: oldF, status: 'modified', diffs });
+    if (!raw) continue;
+    const fm = raw.match(/^(?:`([^`]+)`|(\w+))\s+([A-Z_0-9]+(?:\s*\([^)]*\))?(?:\(\s*\))?(?:\s+UNSIGNED)?)\s*(.*)/i);
+    if (!fm) continue;
+    let name = fm[1] || fm[2];
+    let type = fm[3].trim().toUpperCase();
+    // 补全 UNSIGNED 等
+    const rest = (fm[4] || '').trim();
+    if (/UNSIGNED/i.test(rest) && !type.includes('UNSIGNED')) type += ' UNSIGNED';
+    const restUpper = rest.toUpperCase();
+    const notNull = /NOT\s+NULL/.test(restUpper);
+    const pk = /PRIMARY\s+KEY/.test(restUpper);
+    const autoInc = /AUTO_INCREMENT/i.test(restUpper);
+    const identity = /IDENTITY/i.test(restUpper);
+    let defaultVal = '';
+    const defM = rest.match(/DEFAULT\s+(?:N?)'(.*?)'/i) || rest.match(/DEFAULT\s+(\S+)/i);
+    if (defM) defaultVal = defM[1] || defM[0].replace(/DEFAULT\s+/i, '');
+    // 处理 N'...' 格式
+    if (/DEFAULT\s+N'/i.test(rest)) {
+      const nd = rest.match(/DEFAULT\s+N'([^']*)'/i);
+      if (nd) defaultVal = "N'" + nd[1] + "'";
     }
+
+    let comment = mySqlComment || lineComment;
+    fields.push({ id: uid(), name, type, nullable: !notNull, pk, defaultVal, comment, autoInc, identity });
+  }
+  return fields;
+}
+
+function splitFields(body) {
+  const result = []; let depth = 0, cur = '';
+  let inLineComment = false; // 当前是否在行注释中（-- 开头到行末）
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    // 检测行注释起始：连续两个 - 且不在引号内
+    if (!inLineComment && ch === '-' && i + 1 < body.length && body[i + 1] === '-') {
+      inLineComment = true;
+      cur += ch;
+    }
+    // 行注释在换行时结束
+    else if (inLineComment && (ch === '\n' || ch === '\r')) {
+      inLineComment = false;
+      cur += ch;
+    }
+    else if (inLineComment) {
+      // 在行注释内，逗号不作为字段分隔符，直接追加
+      cur += ch;
+    }
+    else if (ch === '(') { depth++; cur += ch; }
+    else if (ch === ')') { depth--; cur += ch; }
+    else if (ch === ',' && depth === 0) { result.push(cur); cur = ''; }
+    else cur += ch;
+  }
+  if (cur.trim()) result.push(cur);
+  return result;
+}
+
+function uid() { return Math.random().toString(36).slice(2, 9); }
+
+// ══════════════════════════════════════════
+// SQL 生成器（多方言）
+// ══════════════════════════════════════════
+function generateTableSQL(t) {
+  if (!t || !t.fields.length) return `-- 表 ${t ? t.name : ''} 暂无字段`;
+  const d = getDialect();
+  let sql = '';
+  // DROP TABLE 语句（各方言适配）
+  if (currentDialect === 'oracle') {
+    sql += `DROP TABLE ${t.name} PURGE;\n`;
+  } else if (currentDialect === 'sqlserver') {
+    sql += `IF OBJECT_ID(N'${t.name}', N'U') IS NOT NULL DROP TABLE ${t.name};\n`;
+  } else {
+    // MySQL / PostgreSQL
+    sql += `DROP TABLE IF EXISTS ${t.name};\n`;
+  }
+  if (t.comment && !d.comment.tableInCreate) sql += `-- ${t.comment}\n`;
+  sql += `CREATE TABLE ${t.name} (\n`;
+  const lines = t.fields.map((f, i) => {
+    let line = `    ${f.name} ${f.type}`;
+    // DEFAULT 在 NOT NULL 前（SQL 标准语法）
+    if (f.defaultVal) line += ` DEFAULT ${f.defaultVal}`;
+    if (f.pk) line += ' NOT NULL PRIMARY KEY';
+    else if (!f.nullable) line += ' NOT NULL';
+    if (f.autoInc) line += ' AUTO_INCREMENT';
+    if (f.identity) line += ' IDENTITY(1,1)';
+    const comma = i < t.fields.length - 1 ? ',' : '';
+    if (d.comment.columnInCreate && f.comment) {
+      // MySQL: COMMENT 是字段定义的一部分，逗号在注释后
+      line += ` COMMENT '${f.comment}'` + comma;
+    } else if (d.comment.inline && f.comment) {
+      // Oracle/PG/SQL Server: -- 是行尾注释，逗号必须在注释符号之前
+      line += comma + d.comment.inline(f);
+    } else {
+      line += comma;
+    }
+    return line;
   });
-  return changes;
+  sql += lines.join('\n') + '\n)';
+  // MySQL: 表注释在括号后
+  if (d.comment.tableInCreate && t.comment) {
+    sql += ` COMMENT='${t.comment}'`;
+  }
+  sql += ';\n';
+
+  // 后置注释语句
+  if (d.comment.tableAfter && t.comment) {
+    sql += d.comment.tableAfter(t) + '\n';
+  }
+  if (d.comment.columnAfter) {
+    const commentCols = t.fields.filter(f => f.comment && !d.comment.columnInCreate);
+    if (commentCols.length) {
+      sql += '\n' + commentCols.map(f => d.comment.columnAfter(t, f)).join('\n') + '\n';
+    }
+  }
+  return sql;
+}
+
+function generateAllSQL() {
+  const SEPARATOR = '\x00TABLE_BREAK\x00';
+  let sql = tables.map(t => generateTableSQL(t)).join(SEPARATOR);
+  // SQL Server: 加 GO 分隔
+  if (currentDialect === 'sqlserver') {
+    sql = sql.split(SEPARATOR).map(block => block.trim()).filter(Boolean).join('\n\nGO\n\n') + '\n\nGO';
+  } else {
+    sql = sql.split(SEPARATOR).join('\n\n');
+  }
+  return sql;
 }
 
 // ══════════════════════════════════════════
+// SQL 校验器
+// ══════════════════════════════════════════
+
+// 各方言保留字
+const RESERVED_WORDS = {
+  oracle: ['ACCESS','ACCOUNT','ACTIVATE','ADD','ADMIN','ADVISE','AFTER','ALL','ALL_ROWS','ALLOCATE','ALTER','ALWAYS','ANALYZE','AND','ANY','ARCHIVE','ARCHIVELOG','ARRAY','AS','ASC','AT','ATTRIBUTE','AUDIT','AUTHID','AUTO','AUTOMATIC','AUTONOMOUS_TRANSACTION','AVG','BACKUP','BECOME','BEFORE','BEGIN','BETWEEN','BFILE','BITMAP','BLOB','BLOCK','BODY','BY','CACHE','CACHE_INSTANCES','CALL','CANCEL','CARDINALITY','CASCADE','CASE','CAST','CATEGORY','CHAIN','CHANGE','CHAR','CHAR_CS','CHARACTER','CHECK','CHECKPOINT','CHOOSE','CHR','CLOB','CLOSE','CLUSTER','COALESCE','COLLECT','COLUMN','COLUMNS','COMMENT','COMMIT','COMMITTED','COMPATIBILITY','COMPILE','COMPLETE','COMPOSITE_LIMIT','COMPRESS','COMPUTE','CONNECT','CONNECT_TIME','CONSTRAINT','CONSTRAINTS','CONTAINER','CONTENT','CONTINUE','CONTROLFILE','CONVERT','CORRUPTION','COST','CPU_PER_CALL','CPU_PER_SESSION','CREATE','CURRENT','CURRENT_USER','CURSOR','CYCLE','DANGLING','DATABASE','DATAFILE','DATAFILES','DATE','DBA','DBHIGH','DBLOW','DBMAC','DEALLOCATE','DEBUG','DEC','DECIMAL','DECLARE','DEFAULT','DEFERRABLE','DEFERRED','DEGREE','DELETE','DEMAND','DEREF','DESC','DIRECTORY','DISABLE','DISCONNECT','DISMOUNT','DISPOSE','DISTINCT','DISTINGUISHED','DO','DOUBLE','DROP','DUMP','DYNAMIC','EACH','ELSE','ENABLE','END','ENFORCE','ENTRY','ESCAPE','EXCEPT','EXCEPTIONS','EXCHANGE','EXCLUDE','EXCLUSIVE','EXECUTE','EXISTS','EXPIRE','EXPLAIN','EXTENT','EXTENTS','EXTERNAL','FAILED_LOGIN_ATTEMPTS','FAST','FETCH','FILE','FEW','FIRST','FLUSH','FOLLOWING','FOR','FORCE','FOREIGN','FREELIST','FREELISTS','FROM','FULL','FUNCTION','GENERATED','GLOBAL','GLOBALLY','GLOBAL_NAME','GRANT','GROUP','GROUPS','HASH','HAVING','HEADER','HEAP','HIGH','HOUR','IDENTIFIED','IDENTIFIER','IDLE_TIME','IMMEDIATE','IN','INCLUDING','INCREMENT','INDEX','INDEXED','INDEXES','INDICATOR','INDICES','INITIAL','INITIALLY','INITRANS','INSERT','INSTANCE','INSTANCES','INSTEAD','INT','INTEGER','INTERMEDIATE','INTERSECT','INTO','IS','ISOLATION','ISOLATION_LEVEL','KEEP','KEY','KILL','LABEL','LANGUAGE','LARGE','LAST','LATERAL','LAYER','LEVEL','LIBRARY','LIKE','LIMIT','LINK','LIST','LOB','LOCAL','LOCK','LOCKED','LOG','LOGFILE','LOGGING','LOGICAL','LOGICAL_READS_PER_CALL','LOGICAL_READS_PER_SESSION','LONG','LOOP','MANAGE','MASTER','MAX','MAXDATAFILES','MAXEXTENTS','MAXINSTANCES','MAXLOGFILES','MAXLOGHISTORY','MAXLOGMEMBERS','MAXSIZE','MAXTRANS','MAXVALUE','MIN','MINEXTENTS','MINUS','MINIMUM','MINVALUE','MLSLABEL','MODE','MODIFY','MODULE','MONEY','MONTH','MOUNT','MOVE','MTS_DISPATCHERS','MULTISET','NATIONAL','NCHAR','NCHAR_CS','NCLOB','NEED','NESTED','NETWORK','NEW','NEXT','NO','NOAUDIT','NOCACHE','NOCOMPRESS','NOCYCLE','NOLOGGING','NOMAXVALUE','NOMINVALUE','NONE','NOORDER','NOOVERRIDE','NOPARALLEL','NOPROMPT','NOREVERSE','NORMAL','NOSORT','NOT','NOTHING','NOWAIT','NULL','NUMBER','NUMERIC','NVARCHAR2','OBJECT','OBJNO','OCCURENCES','OF','OFF','OFFLINE','OID','OIDINDEX','OLD','ON','ONLINE','ONLY','OPEN','OPTIMAL','OPTIMIZER_GOAL','OPTION','OR','ORDER','OUTER','OUTLINE','OVERFLOW','OWN','PACKAGE','PARALLEL','PARTITION','PASSWORD','PASSWORD_GRACE_TIME','PASSWORD_LIFE_TIME','PASSWORD_LOCK_TIME','PASSWORD_REUSE_MAX','PASSWORD_REUSE_TIME','PASSWORD_VERIFY_FUNCTION','PCTFREE','PCTINCREASE','PCTTHRESHOLD','PCTUSED','PERCENT','PERMANENT','PLAN','PLSQL_DEBUG','POST_TRANSACTION','PRECEDING','PRECISION','PRESERVE','PRIMARY','PRIOR','PRIVATE','PRIVATE_SGA','PRIVILEGE','PRIVILEGES','PROCEDURE','PROFILE','PUBLIC','PURGE','QUEUE','QUOTA','RANGE','RAW','READ','READONLY','READ_PER_CALL','READ_PER_SESSION','REAL','REBUILD','RECOVER','RECOVERABLE','RECOVERY','REF','REFERENCES','REFERENCING','REFRESH','REGISTER','REJECT','RELATIONAL','RELY','RENAME','REPLACE','RESET','RESETLOGS','RESOURCE','RESTRICT','RESTRICTED','RETURN','RETURNING','REUSE','REVERSE','REVOKE','ROLE','ROLES','ROLLBACK','ROW','ROWID','ROWNUM','ROWS','RULE','SAMPLE','SAVEPOINT','SCHEMA','SCN','SCOPE','SECTION','SEGMENT','SELECT','SEQUENCE','SERIALIZABLE','SESSION','SESSION_CACHED_CURSORS','SESSIONS_PER_USER','SET','SHARE','SHARED','SHRINK','SIZE','SKIP','SMALLINT','SNAPSHOT','SOME','SORT','SPECIFICATION','SPLIT','SQL_TRACE','STANDBY','START','STATEMENT_ID','STATISTICS','STOP','STORAGE','STORE','STRUCTURE','SUBPARTITION','SUBSTITUTABLE','SUCCESSFUL','SUM','SWITCH','SYS','SYNONYM','SYSDATE','SYSDBA','SYSOPER','SYSTEM','TABLE','TABLESPACE','TABLESPACE_NO','TABNO','TEMPORARY','THAN','THE','THEN','THREAD','TIMESTAMP','TIME','TO','TOPLEVEL','TRACE','TRACING','TRANSACTION','TRANSACTIONAL','TRANSITIONAL','TRIGGER','TRIGGERS','TRUE','TRUNCATE','TYPE','UB2','UID','UNARCHIVED','UNDO','UNION','UNIQUE','UNLIMITED','UNLOCK','UNRECOVERABLE','UNTIL','UNUSABLE','UNUSED','UPDATE','USAGE','USE','USER','USING','VALIDATE','VALIDATION','VALUE','VALUES','VARCHAR','VARCHAR2','VARYING','VIEW','WHEN','WHENEVER','WHERE','WHILE','WITH','WORK','WRITE','XML','ZONE'],
+  mysql: ['ACCESSIBLE','ADD','ALL','ALTER','ANALYZE','AND','AS','ASC','ASENSITIVE','BEFORE','BETWEEN','BIGINT','BINARY','BLOB','BOTH','BY','CALL','CASCADE','CASE','CHANGE','CHAR','CHARACTER','CHECK','COLLATE','COLUMN','CONDITION','CONSTRAINT','CONTINUE','CONVERT','CREATE','CROSS','CUBE','CUME_DIST','CURRENT_DATE','CURRENT_TIME','CURRENT_TIMESTAMP','CURRENT_USER','CURSOR','DATABASE','DATABASES','DAY_HOUR','DAY_MICROSECOND','DAY_MINUTE','DAY_SECOND','DEC','DECIMAL','DECLARE','DEFAULT','DELAYED','DELETE','DENSE_RANK','DESC','DESCRIBE','DETERMINISTIC','DISTINCT','DISTINCTROW','DIV','DOUBLE','DROP','DUAL','EACH','ELSE','ELSEIF','ENCLOSED','ESCAPED','EXISTS','EXIT','EXPLAIN','FALSE','FETCH','FLOAT','FLOAT4','FLOAT8','FOR','FORCE','FOREIGN','FROM','FULLTEXT','FUNCTION','GENERATED','GET','GRANT','GROUP','GROUPING','GROUPS','HAVING','HIGH_PRIORITY','HOUR_MICROSECOND','HOUR_MINUTE','HOUR_SECOND','IF','IGNORE','IN','INDEX','INFILE','INNER','INOUT','INSENSITIVE','INSERT','INT','INT1','INT2','INT3','INT4','INT8','INTEGER','INTERVAL','INTO','IO_AFTER_GTIDS','IO_BEFORE_GTIDS','IS','ITERATE','JOIN','JSON','KEY','KEYS','KILL','LAG','LAST_INSERT_ID','LATERAL','LEAD','LEADING','LEAVE','LEFT','LIKE','LIMIT','LINEAR','LINES','LOAD','LOCALTIME','LOCALTIMESTAMP','LOCK','LONG','LONGBLOB','LONGTEXT','LOOP','LOW_PRIORITY','MASTER_BIND','MASTER_SSL_VERIFY_SERVER_CERT','MATCH','MAXVALUE','MEDIUMBLOB','MEDIUMINT','MEDIUMTEXT','MIDDLEINT','MINUTE_MICROSECOND','MINUTE_SECOND','MOD','MODIFIES','NATURAL','NOT','NO_WRITE_TO_BINLOG','NTH_VALUE','NTILE','NULL','NUMERIC','ON','OPTIMIZE','OPTIMIZER_COSTS','OPTION','OPTIONALLY','OR','ORDER','OUT','OUTER','OUTFILE','OVER','PARTITION','PERCENT_RANK','PRECISION','PRIMARY','PROCEDURE','PURGE','RANGE','RANK','READ','READ_WRITE','READS','REAL','RECURSIVE','REFERENCES','REGEXP','RELEASE','RENAME','REPEAT','REPLACE','REQUIRE','RESIGNAL','RESTRICT','RETURN','REVOKE','RIGHT','RLIKE','ROW','ROWS','ROW_COUNT','SCHEMA','SCHEMAS','SECOND_MICROSECOND','SELECT','SENSITIVE','SEPARATOR','SET','SHOW','SIGNAL','SMALLINT','SPATIAL','SPECIFIC','SQL','SQLEXCEPTION','SQLSTATE','SQLWARNING','SQL_BIG_RESULT','SQL_CALC_FOUND_ROWS','SQL_SMALL_RESULT','SSL','STARTING','STORED','STRAIGHT_JOIN','SYSTEM','TABLE','TERMINATED','THEN','TINYBLOB','TINYINT','TINYTEXT','TO','TRAILING','TRIGGER','TRUE','UNDO','UNION','UNIQUE','UNLOCK','UNSIGNED','UPDATE','USAGE','USE','USING','UTC_DATE','UTC_TIME','UTC_TIMESTAMP','VALUES','VARBINARY','VARCHAR','VARCHARACTER','VARYING','VIRTUAL','WHEN','WHERE','WHILE','WINDOW','WITH','WRITE','XOR','YEAR_MONTH','ZEROFILL'],
+  postgresql: ['ALL','ANALYSE','ANALYZE','AND','ANY','ARRAY','AS','ASC','ASYMMETRIC','AUTHORIZATION','BETWEEN','BINARY','BIT','BOTH','CASE','CAST','CHECK','COLLATE','COLLATION','COLUMN','CONCURRENTLY','CONSTRAINT','CREATE','CROSS','CURRENT_CATALOG','CURRENT_DATE','CURRENT_ROLE','CURRENT_SCHEMA','CURRENT_TIME','CURRENT_TIMESTAMP','CURRENT_USER','DEFAULT','DEFERRABLE','DESC','DISTINCT','DO','DOMAIN','DOUBLE','DROP','EACH','ELSE','END','EXCEPT','EXCLUDE','EXCLUDING','EXECUTE','EXISTS','EXPLAIN','FALSE','FETCH','FILTER','FOLLOWING','FOR','FOREIGN','FREEZE','FROM','FULL','FUNCTION','GRANT','GROUP','HAVING','ILIKE','IN','INITIALLY','INNER','INOUT','INSERT','INSTEAD','INTERSECT','INTO','IS','ISNULL','JOIN','LATERAL','LEADING','LEFT','LIKE','LIMIT','LOCALTIME','LOCALTIMESTAMP','NATURAL','NOT','NOTNULL','NULL','OFFSET','ON','ONLY','OR','ORDER','OUTER','OVER','OVERLAPS','PLACING','PRIMARY','REFERENCES','RETURNING','RIGHT','ROLLBACK','ROW','ROWS','SELECT','SESSION_USER','SET','SOME','SYMMETRIC','TABLE','TABLESAMPLE','THEN','TO','TRAILING','TRUE','UNION','UNIQUE','USER','USING','VARIADIC','VERBOSE','VIEW','WHEN','WHERE','WINDOW','WITH'],
+  sqlserver: ['ADD','ALL','ALTER','AND','ANY','AS','ASC','AUTHORIZATION','BACKUP','BEGIN','BETWEEN','BREAK','BROWSE','BULK','BY','CASCADE','CASE','CHECK','CHECKPOINT','CLOSE','CLUSTERED','COALESCE','COLLATE','COLUMN','COMMIT','COMPUTE','CONSTRAINT','CONTAINS','CONTAINSTABLE','CONTINUE','CONVERT','CREATE','CROSS','CURRENT','CURRENT_DATE','CURRENT_TIME','CURRENT_TIMESTAMP','CURRENT_USER','CURSOR','DATABASE','DBCC','DEALLOCATE','DECLARE','DEFAULT','DELETE','DENY','DESC','DISK','DISTINCT','DISTRIBUTED','DOUBLE','DROP','DUMP','ELSE','END','ERRLVL','ESCAPE','EXCEPT','EXEC','EXECUTE','EXISTS','EXIT','EXTERNAL','FETCH','FILE','FILLFACTOR','FOR','FOREIGN','FREETEXT','FREETEXTTABLE','FROM','FULL','FUNCTION','GOTO','GRANT','GROUP','HAVING','HOLDLOCK','IDENTITY','IDENTITYCOL','IDENTITY_INSERT','IF','IN','INDEX','INNER','INSERT','INTERSECT','INTO','IS','JOIN','KEY','KILL','LEFT','LIKE','LINENO','LOAD','MERGE','NATIONAL','NOCHECK','NONCLUSTERED','NOT','NULL','NULLIF','OF','OFF','OFFSETS','ON','OPEN','OPENDATASOURCE','OPENQUERY','OPENROWSET','OPENXML','OPTION','OR','ORDER','OUTER','OVER','PERCENT','PIVOT','PLAN','PRECISION','PRIMARY','PRINT','PROC','PROCEDURE','PUBLIC','RAISERROR','READ','READTEXT','RECONFIGURE','REFERENCES','REPLICATION','RESTORE','RESTRICT','RETURN','REVERT','REVOKE','RIGHT','ROLLBACK','ROWCOUNT','ROWGUIDCOL','RULE','SAVE','SCHEMA','SELECT','SESSION_USER','SET','SETUSER','SHUTDOWN','SOME','STATISTICS','SYSTEM_USER','TABLE','TABLESAMPLE','TEXTSIZE','THEN','TO','TOP','TRAN','TRANSACTION','TRIGGER','TRUNCATE','TSEQUAL','UNION','UNIQUE','UNPIVOT','UPDATE','UPDATETEXT','USE','USER','VALUES','VARYING','VIEW','WAITFOR','WHEN','WHERE','WHILE','WITH','WRITETEXT'],
+};
+
+// 各方言非法字符规则
+const NAME_RULES = {
+  oracle:    { pattern: /^[A-Za-z_][A-Za-z0-9_$#]*$/, msg: '只允许字母、数字、_、$、#，且不能以数字开头' },
+  mysql:     { pattern: /^[A-Za-z_][A-Za-z0-9_]*$/, msg: '只允许字母、数字、_，且不能以数字开头' },
+  postgresql:{ pattern: /^[A-Za-z_][A-Za-z0-9_]*$/, msg: '只允许字母、数字、_，且不能以数字开头' },
+  sqlserver: { pattern: /^[A-Za-z_][A-Za-z0-9_@#$]*$/, msg: '只允许字母、数字、_、@、#、$，且不能以数字开头' },
+};
+
+// 各方言数据类型正则
+const TYPE_PATTERNS = {
+  oracle: /^(VARCHAR2|NVARCHAR2|NUMBER|DATE|TIMESTAMP|CLOB|BLOB|CHAR|NCHAR|RAW|LONG|FLOAT|INTEGER|INT|SMALLINT|DECIMAL|REAL|DOUBLE|BOOLEAN|NCLOB|BFILE|UROWID|MLSLABEL)\s*(\([0-9,\s]+\))?$/i,
+  mysql: /^(TINYINT|SMALLINT|MEDIUMINT|INT|INTEGER|BIGINT|FLOAT|DOUBLE|DECIMAL|NUMERIC|DATE|DATETIME|TIMESTAMP|TIME|YEAR|CHAR|VARCHAR|BINARY|VARBINARY|TINYBLOB|BLOB|MEDIUMBLOB|LONGBLOB|TINYTEXT|TEXT|MEDIUMTEXT|LONGTEXT|ENUM|SET|JSON|BOOLEAN|BIT|SERIAL)\s*(\([0-9,\s]+\))?$/i,
+  postgresql: /^(SMALLINT|INTEGER|BIGINT|SERIAL|BIGSERIAL|SMALLSERIAL|REAL|DOUBLE|PRECISION|NUMERIC|DECIMAL|MONEY|CHAR|VARCHAR|TEXT|BYTEA|DATE|TIMESTAMP|TIMESTAMPTZ|TIME|TIMETZ|INTERVAL|BOOLEAN|BIT|UUID|JSON|JSONB|XML|CIDR|INET|MACADDR|POINT|LINE|LSEG|BOX|PATH|POLYGON|CIRCLE|ARRAY)\s*(\([0-9,\s]+\))?(\[\])?$/i,
+  sqlserver: /^(TINYINT|SMALLINT|INT|INTEGER|BIGINT|BIT|DECIMAL|NUMERIC|MONEY|SMALLMONEY|FLOAT|REAL|DATE|DATETIME|DATETIME2|DATETIMEOFFSET|SMALLDATETIME|TIME|CHAR|VARCHAR|NCHAR|NVARCHAR|TEXT|NTEXT|BINARY|VARBINARY|IMAGE|UNIQUEIDENTIFIER|SQL_VARIANT|TABLE|XML|ROWVERSION|TIMESTAMP|HIERARCHYID|GEOMETRY|GEOGRAPHY)\s*(\([0-9,\s]+\))?$/i,
+};
+
+/**
+ * 校验所有表的 SQL 语法，返回错误列表
+ * @returns {{ errors: Array<{table: string, field: string, type: string, msg: string}>, warnings: Array } }
+ */
+function validateSQL() {
+  const d = currentDialect;
+  const reserved = (RESERVED_WORDS[d] || []).map(w => w.toUpperCase());
+  const nameRule = NAME_RULES[d];
+  const typePattern = TYPE_PATTERNS[d];
+  const errors = [];
+  const warnings = [];
+
+  if (!tables.length) {
+    warnings.push({ table: '-', field: '', type: 'warning', msg: '暂无表定义' });
+    return { errors, warnings };
+  }
+
+  // 检测表名重复
+  const tableNames = tables.map(t => t.name.toUpperCase());
+  tableNames.forEach((name, i) => {
+    if (name !== name.trim()) {
+      errors.push({ table: tables[i].name, field: '', type: 'error', msg: `表名首尾包含空格` });
+    }
+    if (!nameRule.pattern.test(tables[i].name)) {
+      errors.push({ table: tables[i].name, field: '', type: 'error', msg: `表名格式不合法：${nameRule.msg}` });
+    }
+    if (reserved.includes(name)) {
+      warnings.push({ table: tables[i].name, field: '', type: 'warning', msg: `表名 "${name}" 是保留字，建议加引号或改名` });
+    }
+    if (name.length > 128) {
+      warnings.push({ table: tables[i].name, field: '', type: 'warning', msg: `表名超过 128 个字符` });
+    }
+  });
+
+  const dupTableNames = tableNames.filter((n, i) => tableNames.indexOf(n) !== i);
+  if (dupTableNames.length) {
+    errors.push({ table: dupTableNames[0], field: '', type: 'error', msg: `存在重复表名: ${[...new Set(dupTableNames)].join(', ')}` });
+  }
+
+  tables.forEach(t => {
+    if (!t.fields.length) {
+      warnings.push({ table: t.name, field: '', type: 'warning', msg: `表 "${t.name}" 没有字段定义` });
+      return;
+    }
+
+    // 检测多个主键
+    const pkFields = t.fields.filter(f => f.pk);
+    if (pkFields.length > 1) {
+      errors.push({ table: t.name, field: pkFields.map(f => f.name).join(', '), type: 'error', msg: '不支持复合主键，每张表只能有 1 个主键字段' });
+    }
+
+    // 检测字段名重复
+    const fieldNames = t.fields.map(f => f.name.toUpperCase());
+    const dupFields = fieldNames.filter((n, i) => fieldNames.indexOf(n) !== i);
+    if (dupFields.length) {
+      errors.push({ table: t.name, field: [...new Set(dupFields)].join(', '), type: 'error', msg: `存在重复字段名: ${[...new Set(dupFields)].join(', ')}` });
+    }
+
+    t.fields.forEach(f => {
+      // 字段名检查
+      if (!f.name || !f.name.trim()) {
+        errors.push({ table: t.name, field: f.name || '(空)', type: 'error', msg: '字段名不能为空' });
+        return;
+      }
+      if (f.name !== f.name.trim()) {
+        errors.push({ table: t.name, field: f.name, type: 'error', msg: '字段名首尾包含空格' });
+      }
+      if (!nameRule.pattern.test(f.name)) {
+        errors.push({ table: t.name, field: f.name, type: 'error', msg: `字段名格式不合法：${nameRule.msg}` });
+      }
+      if (reserved.includes(f.name.toUpperCase())) {
+        warnings.push({ table: t.name, field: f.name, type: 'warning', msg: `字段名 "${f.name}" 是保留字，建议加引号或改名` });
+      }
+
+      // 类型检查
+      if (!f.type || !f.type.trim()) {
+        errors.push({ table: t.name, field: f.name, type: 'error', msg: '字段类型不能为空' });
+      } else if (!typePattern.test(f.type.trim())) {
+        warnings.push({ table: t.name, field: f.name, type: 'warning', msg: `类型 "${f.type}" 不是标准 ${getDialect().label} 类型，请确认` });
+      }
+
+      // 主键不能为空
+      if (f.pk && f.nullable) {
+        warnings.push({ table: t.name, field: f.name, type: 'warning', msg: '主键字段建议设为 NOT NULL' });
+      }
+
+      // AUTO_INCREMENT 只限 MySQL
+      if (f.autoInc && d !== 'mysql') {
+        errors.push({ table: t.name, field: f.name, type: 'error', msg: `AUTO_INCREMENT 仅适用于 MySQL，当前方言为 ${getDialect().label}` });
+      }
+      // IDENTITY 只限 SQL Server
+      if (f.identity && d !== 'sqlserver') {
+        errors.push({ table: t.name, field: f.name, type: 'error', msg: `IDENTITY 仅适用于 SQL Server，当前方言为 ${getDialect().label}` });
+      }
+
+      // 注释中的单引号检查
+      if (f.comment && f.comment.includes("'")) {
+        warnings.push({ table: t.name, field: f.name, type: 'warning', msg: `注释中包含单引号，可能导致 SQL 语法错误` });
+      }
+    });
+    // 表注释单引号检查（放在字段循环外，避免重复）
+    if (t.comment && t.comment.includes("'")) {
+      warnings.push({ table: t.name, field: '', type: 'warning', msg: `表注释包含单引号，可能导致 SQL 语法错误` });
+    }
+  });
+
+  return { errors, warnings };
+}
+
+function runValidation() {
+  const { errors, warnings } = validateSQL();
+  const el = document.getElementById('validationPanel');
+  el.style.display = 'block';
+  const total = errors.length + warnings.length;
+
+  if (total === 0) {
+    el.className = 'validation-panel';
+    el.innerHTML = `<div class="val-header val-pass"><span class="val-icon">✅</span> 校验通过 · 无错误和警告</div>`;
+  } else {
+    let html = `<div class="val-header val-fail"><span class="val-icon">⚠️</span> 发现 <strong>${errors.length}</strong> 个错误，<strong>${warnings.length}</strong> 个警告</div>`;
+    html += '<div class="val-list">';
+    errors.forEach(e => {
+      html += `<div class="val-item val-error">
+        <span class="val-badge error">错误</span>
+        <span class="val-table">${escHtml(e.table)}</span>
+        ${e.field ? `<span class="val-field">${escHtml(e.field)}</span>` : ''}
+        <span class="val-msg">${escHtml(e.msg)}</span>
+      </div>`;
+    });
+    warnings.forEach(w => {
+      html += `<div class="val-item val-warning">
+        <span class="val-badge warning">警告</span>
+        <span class="val-table">${escHtml(w.table)}</span>
+        ${w.field ? `<span class="val-field">${escHtml(w.field)}</span>` : ''}
+        <span class="val-msg">${escHtml(w.msg)}</span>
+      </div>`;
+    });
+    html += '</div>';
+    el.innerHTML = html;
+    el.className = 'validation-panel val-show';
+  }
+}
+
+function hideValidation() {
+  const el = document.getElementById('validationPanel');
+  el.style.display = 'none';
+  el.innerHTML = '';
+}
+
+// ══════════════════════════════════════════
+// SQL 高亮（方言感知）
+// ══════════════════════════════════════════
+function highlight(sql) {
+  const d = getDialect();
+  const keywords = d.highlightKeywords;
+  const types = d.highlightTypes;
+  let out = '', i = 0;
+  while (i < sql.length) {
+    if (sql[i] === '-' && sql[i+1] === '-') {
+      let end = sql.indexOf('\n', i); if (end === -1) end = sql.length;
+      out += `<span class="cmt">${esc(sql.slice(i, end))}</span>`; i = end; continue;
+    }
+    if (sql[i] === "'") {
+      let j = i + 1; while (j < sql.length && sql[j] !== "'") j++; j++;
+      out += `<span class="str">${esc(sql.slice(i, j))}</span>`; i = j; continue;
+    }
+    // SQL Server N'...' string
+    if (sql[i] === 'N' && sql[i+1] === "'") {
+      let j = i + 2; while (j < sql.length && sql[j] !== "'") j++; j++;
+      out += `<span class="str">${esc(sql.slice(i, j))}</span>`; i = j; continue;
+    }
+    if (/[A-Za-z_]/.test(sql[i])) {
+      let j = i; while (j < sql.length && /[\w]/.test(sql[j])) j++;
+      const w = sql.slice(i, j), wu = w.toUpperCase();
+      if (keywords.includes(wu)) out += `<span class="kw">${esc(w)}</span>`;
+      else if (types.some(t => wu.startsWith(t))) out += `<span class="fn">${esc(w)}</span>`;
+      else out += `<span class="col">${esc(w)}</span>`;
+      i = j; continue;
+    }
+    out += esc(sql[i]); i++;
+  }
+  return out;
+}
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ========== ai.js ==========
+// FluxSQL - AI 功能模块
 // 数据模型
 // ══════════════════════════════════════════
 let tables = [];
@@ -2255,404 +2120,374 @@ function handleAiSendRetry(idx, userMsg) {
 
 // ══════════════════════════════════════════
 // SQL 解析器（多方言支持）
+
+// ========== history.js ==========
+// FluxSQL - 变更历史模块
 // ══════════════════════════════════════════
-function parseSQL(sql) {
-  const result = [];
-  sql = sql.replace(/\/\*[\s\S]*?\*\//g, '');
-  // CREATE TABLE
-  const createReg = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s*\(([\s\S]*?)\)\s*(?:ENGINE\s*=\s*\w+\s*)?(?:CHARSET\s*=\s*\w+\s*)?(?:COMMENT\s*=\s*'([^']*)')?\s*;/gi;
-  let m;
-  while ((m = createReg.exec(sql)) !== null) {
-    const t = { name: m[1], comment: m[3] || '', fields: parseFields(m[2]) };
-    // MySQL: 表注释在 CREATE TABLE 末尾
-    result.push(t);
-  }
-  // Oracle/PG: COMMENT ON TABLE
-  const tableCommentReg = /COMMENT\s+ON\s+TABLE\s+(\w+)\s+IS\s+'([^']*)'/gi;
-  while ((m = tableCommentReg.exec(sql)) !== null) {
-    const t = result.find(x => x.name.toUpperCase() === m[1].toUpperCase());
-    if (t && !t.comment) t.comment = m[2];
-  }
-  // Oracle/PG: COMMENT ON COLUMN
-  const colCommentReg = /COMMENT\s+ON\s+COLUMN\s+(\w+)\.(\w+)\s+IS\s+'([^']*)'/gi;
-  while ((m = colCommentReg.exec(sql)) !== null) {
-    const t = result.find(x => x.name.toUpperCase() === m[1].toUpperCase());
-    if (t) { const f = t.fields.find(f => f.name.toUpperCase() === m[2].toUpperCase()); if (f) f.comment = m[3]; }
-  }
-  // SQL Server: sp_addextendedproperty for table
-  const ssTableReg = /sp_addextendedproperty\s+'MS_Description',\s*N?'([^']*)',\s*'SCHEMA',\s*'(\w+)',\s*'TABLE',\s*'(\w+)'/gi;
-  while ((m = ssTableReg.exec(sql)) !== null) {
-    const t = result.find(x => x.name.toLowerCase() === m[3].toLowerCase());
-    if (t && !t.comment) t.comment = m[1];
-  }
-  // SQL Server: sp_addextendedproperty for column
-  const ssColReg = /sp_addextendedproperty\s+'MS_Description',\s*N?'([^']*)',\s*'SCHEMA',\s*'(\w+)',\s*'TABLE',\s*'(\w+)',\s*'COLUMN',\s*'(\w+)'/gi;
-  while ((m = ssColReg.exec(sql)) !== null) {
-    const t = result.find(x => x.name.toLowerCase() === m[3].toLowerCase());
-    if (t) { const f = t.fields.find(f => f.name.toLowerCase() === m[4].toLowerCase()); if (f) f.comment = m[1]; }
-  }
-  return result;
+// 变更追踪引擎
+// ══════════════════════════════════════════
+let changeLog = [];       // 操作日志
+let snapshots = [];       // 快照列表
+let snapshotCounter = 0;
+
+function now() {
+  const d = new Date();
+  return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0') + ':' + d.getSeconds().toString().padStart(2,'0');
 }
 
-function parseFields(body) {
-  const fields = [];
-  const lines = splitFields(body);
-  for (let raw of lines) {
-    raw = raw.trim();
-    if (!raw) continue;
-    // 剥离段首的纯注释行（保留内联注释中的字段定义）
-    raw = raw.replace(/^(?:--[^\n]*\n\s*)+/, '').trim();
-    if (!raw || raw.startsWith('--')) continue;
-    if (/^(CONSTRAINT|PRIMARY\s+KEY|UNIQUE|INDEX|KEY)\s/i.test(raw)) continue;
-    let lineComment = '';
-    const inlineM = raw.match(/--\s*(.*)/);
-    if (inlineM) { lineComment = inlineM[1].trim(); raw = raw.replace(/--.*/, '').trim(); }
-    // MySQL: COMMENT 'xxx'
-    let mySqlComment = '';
-    const commentM = raw.match(/\bCOMMENT\s+'([^']*)'\s*$/i);
-    if (commentM) { mySqlComment = commentM[1]; raw = raw.replace(/\bCOMMENT\s+'[^']*'\s*$/i, '').trim(); }
-
-    if (!raw) continue;
-    const fm = raw.match(/^(?:`([^`]+)`|(\w+))\s+([A-Z_0-9]+(?:\s*\([^)]*\))?(?:\(\s*\))?(?:\s+UNSIGNED)?)\s*(.*)/i);
-    if (!fm) continue;
-    let name = fm[1] || fm[2];
-    let type = fm[3].trim().toUpperCase();
-    // 补全 UNSIGNED 等
-    const rest = (fm[4] || '').trim();
-    if (/UNSIGNED/i.test(rest) && !type.includes('UNSIGNED')) type += ' UNSIGNED';
-    const restUpper = rest.toUpperCase();
-    const notNull = /NOT\s+NULL/.test(restUpper);
-    const pk = /PRIMARY\s+KEY/.test(restUpper);
-    const autoInc = /AUTO_INCREMENT/i.test(restUpper);
-    const identity = /IDENTITY/i.test(restUpper);
-    let defaultVal = '';
-    const defM = rest.match(/DEFAULT\s+(?:N?)'(.*?)'/i) || rest.match(/DEFAULT\s+(\S+)/i);
-    if (defM) defaultVal = defM[1] || defM[0].replace(/DEFAULT\s+/i, '');
-    // 处理 N'...' 格式
-    if (/DEFAULT\s+N'/i.test(rest)) {
-      const nd = rest.match(/DEFAULT\s+N'([^']*)'/i);
-      if (nd) defaultVal = "N'" + nd[1] + "'";
-    }
-
-    let comment = mySqlComment || lineComment;
-    fields.push({ id: uid(), name, type, nullable: !notNull, pk, defaultVal, comment, autoInc, identity });
-  }
-  return fields;
+function logAction(type, detail) {
+  changeLog.push({ time: now(), type, detail, ts: Date.now() });
+  if (previewMode === 'history') renderHistoryPanel();
 }
 
-function splitFields(body) {
-  const result = []; let depth = 0, cur = '';
-  let inLineComment = false; // 当前是否在行注释中（-- 开头到行末）
-  for (let i = 0; i < body.length; i++) {
-    const ch = body[i];
-    // 检测行注释起始：连续两个 - 且不在引号内
-    if (!inLineComment && ch === '-' && i + 1 < body.length && body[i + 1] === '-') {
-      inLineComment = true;
-      cur += ch;
-    }
-    // 行注释在换行时结束
-    else if (inLineComment && (ch === '\n' || ch === '\r')) {
-      inLineComment = false;
-      cur += ch;
-    }
-    else if (inLineComment) {
-      // 在行注释内，逗号不作为字段分隔符，直接追加
-      cur += ch;
-    }
-    else if (ch === '(') { depth++; cur += ch; }
-    else if (ch === ')') { depth--; cur += ch; }
-    else if (ch === ',' && depth === 0) { result.push(cur); cur = ''; }
-    else cur += ch;
-  }
-  if (cur.trim()) result.push(cur);
-  return result;
+// 深拷贝 tables 快照
+function cloneTables() { return JSON.parse(JSON.stringify(tables)); }
+
+function saveSnapshot() {
+  snapshotCounter++;
+  const snap = {
+    id: snapshotCounter,
+    label: `快照 #${snapshotCounter}`,
+    time: now(),
+    data: cloneTables(),
+    tableCount: tables.length,
+    logIndex: changeLog.length,  // 该快照对应的日志位置
+  };
+  snapshots.push(snap);
+  logAction('snapshot', `保存 ${snap.label}（${snap.tableCount} 张表）`);
+  renderHistoryPanel();
+  showToast(`${snap.label} 已保存 ✓`);
 }
 
-function uid() { return Math.random().toString(36).slice(2, 9); }
+function restoreSnapshot(snapId) {
+  if (!confirm(`确认恢复到 ${snapshots.find(s=>s.id===snapId)?.label}？\n当前未保存的变更会丢失。`)) return;
+  const snap = snapshots.find(s => s.id === snapId);
+  if (!snap) return;
+  tables = JSON.parse(JSON.stringify(snap.data));
+  aiHistories = {};
+  activeIdx = tables.length > 0 ? 0 : -1;
+  renderTableList(); renderEditor(); updatePreview();
+  logAction('restore', `恢复到 ${snap.label}`);
+  edgeCache = {};
+  expandedEdge = null;
+  renderHistoryPanel();
+  showToast(`已恢复到 ${snap.label}`);
+}
 
-// ══════════════════════════════════════════
-// SQL 生成器（多方言）
-// ══════════════════════════════════════════
-function generateTableSQL(t) {
-  if (!t || !t.fields.length) return `-- 表 ${t ? t.name : ''} 暂无字段`;
-  const d = getDialect();
-  let sql = '';
-  // DROP TABLE 语句（各方言适配）
-  if (currentDialect === 'oracle') {
-    sql += `DROP TABLE ${t.name} PURGE;\n`;
-  } else if (currentDialect === 'sqlserver') {
-    sql += `IF OBJECT_ID(N'${t.name}', N'U') IS NOT NULL DROP TABLE ${t.name};\n`;
+function deleteSnapshot(snapId) {
+  if (!confirm('确认删除该快照？')) return;
+  snapshots = snapshots.filter(s => s.id !== snapId);
+  // 清理关联缓存
+  edgeCache = {};
+  expandedEdge = null;
+  renderHistoryPanel();
+  showToast('快照已删除');
+}
+
+function clearAllHistory() {
+  if (!confirm('确认清空所有操作日志和快照？此操作不可恢复。')) return;
+  changeLog = []; snapshots = []; snapshotCounter = 0;
+  expandedEdge = null;
+  renderHistoryPanel();
+  showToast('历史已清空');
+}
+
+// ── 边缘缓存：预计算相邻快照间的变更摘要 ──
+let edgeCache = {};
+
+function getEdgeSummary(snapA, snapB) {
+  const key = `${snapA.id}-${snapB.id}`;
+  if (edgeCache[key]) return edgeCache[key];
+
+  const diff = computeDiff(snapA.data, snapB.data);
+  let added = 0, removed = 0, modified = 0;
+  let fieldAdded = 0, fieldRemoved = 0, fieldModified = 0;
+
+  diff.forEach(d => {
+    if (d.status === 'added') { added++; fieldAdded += d.table.fields.length; }
+    else if (d.status === 'removed') { removed++; fieldRemoved += d.table.fields.length; }
+    else if (d.status === 'modified') {
+      modified++;
+      d.fieldChanges.forEach(fc => {
+        if (fc.status === 'added') fieldAdded++;
+        else if (fc.status === 'removed') fieldRemoved++;
+        else fieldModified++;
+      });
+    }
+  });
+
+  const hasChanges = added + removed + modified > 0;
+  const summary = { added, removed, modified, fieldAdded, fieldRemoved, fieldModified, hasChanges, diff };
+  edgeCache[key] = summary;
+  return summary;
+}
+
+// ── 展开的边 ──
+let expandedEdge = null; // "snapAId-snapBId"
+
+function toggleEdge(snapAId, snapBId) {
+  const key = `${snapAId}-${snapBId}`;
+  if (expandedEdge === key) {
+    expandedEdge = null;
   } else {
-    // MySQL / PostgreSQL
-    sql += `DROP TABLE IF EXISTS ${t.name};\n`;
+    expandedEdge = key;
   }
-  if (t.comment && !d.comment.tableInCreate) sql += `-- ${t.comment}\n`;
-  sql += `CREATE TABLE ${t.name} (\n`;
-  const lines = t.fields.map((f, i) => {
-    let line = `    ${f.name} ${f.type}`;
-    // DEFAULT 在 NOT NULL 前（SQL 标准语法）
-    if (f.defaultVal) line += ` DEFAULT ${f.defaultVal}`;
-    if (f.pk) line += ' NOT NULL PRIMARY KEY';
-    else if (!f.nullable) line += ' NOT NULL';
-    if (f.autoInc) line += ' AUTO_INCREMENT';
-    if (f.identity) line += ' IDENTITY(1,1)';
-    const comma = i < t.fields.length - 1 ? ',' : '';
-    if (d.comment.columnInCreate && f.comment) {
-      // MySQL: COMMENT 是字段定义的一部分，逗号在注释后
-      line += ` COMMENT '${f.comment}'` + comma;
-    } else if (d.comment.inline && f.comment) {
-      // Oracle/PG/SQL Server: -- 是行尾注释，逗号必须在注释符号之前
-      line += comma + d.comment.inline(f);
+  renderHistoryPanel();
+}
+
+// ── 版本树渲染 ──
+function renderHistoryPanel() {
+  const tree = document.getElementById('historyTree');
+  if (!changeLog.length && !snapshots.length) {
+    tree.innerHTML = '<div style="color:var(--text3);font-size:12px;text-align:center;padding:30px 0">暂无变更记录</div>';
+    return;
+  }
+
+  const iconMap = {
+    'add-field': '➕', 'del-field': '➖', 'mod-field': '✏️',
+    'add-table': '📋', 'del-table': '🗑️', 'mod-table': '✏️',
+    'ai-modify': '🤖', 'snapshot': '📸', 'restore': '⏪',
+    'import': '📂', 'sort': '↕️', 'system-fields': '⚙️',
+  };
+
+  let html = '';
+
+  // 1. 根节点（文件导入/初始状态）
+  const firstLog = changeLog[0];
+  if (firstLog) {
+    html += `<div class="tree-root">
+      <div class="tree-root-dot"></div>
+      <div class="tree-root-info">${firstLog.time} · ${snapshots.length ? snapshots[0].tableCount + ' 张表' : ''}</div>
+    </div>`;
+  } else if (snapshots.length) {
+    html += `<div class="tree-root">
+      <div class="tree-root-dot"></div>
+      <div class="tree-root-info">${snapshots[0].time} · ${snapshots[0].tableCount} 张表</div>
+    </div>`;
+  }
+
+  // 2. 将日志分配到各个快照段
+  // 段0: 根→快照1, 段1: 快照1→快照2, ..., 段N: 最后快照→现在
+  let segments = [];
+  for (let i = 0; i <= snapshots.length; i++) {
+    const startLogIdx = i === 0 ? 0 : snapshots[i - 1].logIndex;
+    const endLogIdx = i < snapshots.length ? snapshots[i].logIndex : changeLog.length;
+    const logs = changeLog.slice(startLogIdx, endLogIdx);
+    segments.push({
+      snapA: i > 0 ? snapshots[i - 1] : null,
+      snapB: i < snapshots.length ? snapshots[i] : null,
+      logs,
+      isFirst: i === 0,
+      isLast: i === snapshots.length,
+    });
+  }
+
+  segments.forEach((seg, segIdx) => {
+    const hasSnapB = !!seg.snapB;
+    const isLastSegment = seg.isLast;
+
+    // 渲染该段的日志（不包含 snapshot 和 restore 类型的）
+    const filteredLogs = seg.logs.filter(l => l.type !== 'snapshot' && l.type !== 'restore');
+    filteredLogs.forEach(log => {
+      html += `<div class="tree-log">
+        <div class="tree-log-dot"></div>
+        <span class="tree-log-time">${log.time}</span>
+        <span class="tree-log-icon">${iconMap[log.type] || '📝'}</span>
+        <span class="tree-log-text">${log.detail}</span>
+      </div>`;
+    });
+
+    // 如果不是最后一段，渲染快照节点 + 连线到下一段
+    if (hasSnapB) {
+      const snap = seg.snapB;
+      const nextSeg = segments[segIdx + 1];
+      const hasNext = nextSeg && nextSeg.snapB;
+
+      // 连线到下一个快照（带变更摘要徽章）
+      if (hasNext) {
+        const summary = getEdgeSummary(snap, nextSeg.snapB);
+        const edgeKey = `${snap.id}-${nextSeg.snapB.id}`;
+        const isExpanded = expandedEdge === edgeKey;
+
+        // 渲染连线 + 徽章
+        const lineCls = summary.hasChanges ? 'has-changes' : 'no-changes';
+        let badgeHtml = '';
+        if (summary.hasChanges) {
+          let parts = [];
+          if (summary.added) parts.push(`<span class="tree-edge-count add">+${summary.added}表</span>`);
+          if (summary.removed) parts.push(`<span class="tree-edge-count del">-${summary.removed}表</span>`);
+          if (summary.modified) parts.push(`<span class="tree-edge-count mod">~${summary.modified}表</span>`);
+          // 字段级摘要
+          let fieldParts = [];
+          if (summary.fieldAdded) fieldParts.push(`<span class="tree-edge-count field-add">+${summary.fieldAdded}字段</span>`);
+          if (summary.fieldRemoved) fieldParts.push(`<span class="tree-edge-count field-del">-${summary.fieldRemoved}字段</span>`);
+          if (summary.fieldModified) fieldParts.push(`<span class="tree-edge-count field-mod">~${summary.fieldModified}字段</span>`);
+          if (fieldParts.length) parts.push(fieldParts.join(''));
+          badgeHtml = parts.join(' ');
+        } else {
+          badgeHtml = '无变更';
+        }
+
+        html += `<div class="tree-edge" style="min-height:28px">
+          <div class="tree-edge-line ${lineCls}"></div>
+          <div class="tree-edge-badge ${summary.hasChanges ? 'has-changes' : 'no-changes'}"
+               onclick="toggleEdge(${snap.id},${nextSeg.snapB.id})"
+               title="${summary.hasChanges ? '点击查看差异详情' : '两次快照间无差异'}">
+            ${isExpanded ? '▲' : '▼'} ${badgeHtml}
+          </div>
+        </div>`;
+      }
+
+      // 快照节点
+      html += `<div class="tree-snap">
+        ${!isLastSegment && segments[segIdx + 1] ? '' : ''}<!-- 节点竖线由上一个连线覆盖 -->
+        <div class="tree-snap-dot"></div>
+        <div class="tree-snap-content">
+          <div class="tree-snap-header">
+            <span class="tree-snap-label" onclick="restoreSnapshot(${snap.id})" title="点击恢复到此版本">${snap.label}</span>
+            <span class="tree-snap-time">${snap.time}</span>
+          </div>
+          <div class="tree-snap-meta">📋 ${snap.tableCount} 张表</div>
+          <div class="tree-snap-actions">
+            <button class="snap-btn restore" onclick="restoreSnapshot(${snap.id})">⏪ 恢复</button>
+            <button class="snap-btn del" onclick="deleteSnapshot(${snap.id})">🗑 删除</button>
+          </div>
+        </div>
+      </div>`;
+
+      // 如果这个边展开了，渲染 diff 详情
+      if (hasNext && expandedEdge === `${snap.id}-${nextSeg.snapB.id}`) {
+        const summary = getEdgeSummary(snap, nextSeg.snapB);
+        if (summary.hasChanges) {
+          html += renderDiffInline(snap, nextSeg.snapB, summary);
+        }
+      }
+    }
+  });
+
+  tree.innerHTML = html;
+
+  // 自动滚动到最新内容（如果是追加而非切换）
+  if (tree.scrollTop + tree.clientHeight >= tree.scrollHeight - 60) {
+    tree.scrollTop = tree.scrollHeight;
+  }
+}
+
+// ── 内联 diff 渲染 ──
+function renderDiffInline(snapA, snapB, summary) {
+  const diff = summary.diff;
+  let html = `<div style="margin:4px 0 8px 24px;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface);animation:fadeIn .15s ease">`;
+
+  diff.forEach(d => {
+    const tagClass = d.status === 'added' ? 'added' : d.status === 'removed' ? 'removed' : d.status === 'modified' ? 'modified' : 'unchanged';
+    const tagText = d.status === 'added' ? '新增' : d.status === 'removed' ? '删除' : d.status === 'modified' ? '修改' : '无变更';
+    html += `<div class="diff-table-group"><div class="diff-table-header">`;
+    html += `<span class="diff-tag ${tagClass}">${tagText}</span>`;
+    if (d.nameChanged) html += `<span class="old-val">${escHtml(d.oldTable.name)}</span> → <span class="new-val">${escHtml(d.table.name)}</span>`;
+    else html += escHtml(d.table.name);
+    if (d.commentChanged) html += ` <span style="color:var(--text3);font-size:11px;font-weight:400">（注释变更）</span>`;
+    html += `</div>`;
+
+    if (d.status === 'unchanged') {
+      html += `<div style="padding:6px 12px;font-size:11px;color:var(--text3)">无字段变更</div>`;
     } else {
-      line += comma;
+      html += `<table class="diff-field-table"><thead><tr><th>字段名</th><th>类型</th><th>NULL</th><th>PK</th><th>默认值</th><th>注释</th></tr></thead><tbody>`;
+      if (d.status === 'modified') {
+        d.fieldChanges.forEach(fc => {
+          if (fc.status === 'added') {
+            html += `<tr class="row-add"><td>+ ${escHtml(fc.field.name)}</td><td>${escHtml(fc.field.type)}</td><td>${fc.field.nullable?'YES':'NO'}</td><td>${fc.field.pk?'✓':''}</td><td>${escHtml(fc.field.defaultVal)||'—'}</td><td>${escHtml(fc.field.comment)||'—'}</td></tr>`;
+          } else if (fc.status === 'removed') {
+            html += `<tr class="row-del"><td>- ${escHtml(fc.field.name)}</td><td>${escHtml(fc.field.type)}</td><td>${fc.field.nullable?'YES':'NO'}</td><td>${fc.field.pk?'✓':''}</td><td>${escHtml(fc.field.defaultVal)||'—'}</td><td>${escHtml(fc.field.comment)||'—'}</td></tr>`;
+          } else {
+            html += `<tr class="row-mod"><td>${escHtml(fc.field.name)}</td>`;
+            ['type','nullable','pk','defaultVal','comment'].forEach(key => {
+              const diffItem = fc.diffs.find(df => df.key === '类型' && key === 'type' || df.key === 'NULL' && key === 'nullable' || df.key === 'PK' && key === 'pk' || df.key === '默认值' && key === 'defaultVal' || df.key === '注释' && key === 'comment');
+              if (diffItem) {
+                html += `<td><span class="old-val">${escHtml(diffItem.old)}</span> → <span class="new-val">${escHtml(diffItem.new)}</span></td>`;
+              } else {
+                let display = key === 'nullable' ? (fc.field[key]?'YES':'NO') : key === 'pk' ? (fc.field[key]?'✓':'') : escHtml(fc.field[key]||'');
+                html += `<td class="unchanged">${display||'—'}</td>`;
+              }
+            });
+            html += `</tr>`;
+          }
+        });
+      } else if (d.status === 'added') {
+        d.table.fields.forEach(f => {
+          html += `<tr class="row-add"><td>${escHtml(f.name)}</td><td>${escHtml(f.type)}</td><td>${f.nullable?'YES':'NO'}</td><td>${f.pk?'✓':''}</td><td>${escHtml(f.defaultVal)||'—'}</td><td>${escHtml(f.comment)||'—'}</td></tr>`;
+        });
+      } else if (d.status === 'removed') {
+        d.table.fields.forEach(f => {
+          html += `<tr class="row-del"><td>${escHtml(f.name)}</td><td>${escHtml(f.type)}</td><td>${f.nullable?'YES':'NO'}</td><td>${f.pk?'✓':''}</td><td>${escHtml(f.defaultVal)||'—'}</td><td>${escHtml(f.comment)||'—'}</td></tr>`;
+        });
+      }
+      html += `</tbody></table>`;
     }
-    return line;
-  });
-  sql += lines.join('\n') + '\n)';
-  // MySQL: 表注释在括号后
-  if (d.comment.tableInCreate && t.comment) {
-    sql += ` COMMENT='${t.comment}'`;
-  }
-  sql += ';\n';
-
-  // 后置注释语句
-  if (d.comment.tableAfter && t.comment) {
-    sql += d.comment.tableAfter(t) + '\n';
-  }
-  if (d.comment.columnAfter) {
-    const commentCols = t.fields.filter(f => f.comment && !d.comment.columnInCreate);
-    if (commentCols.length) {
-      sql += '\n' + commentCols.map(f => d.comment.columnAfter(t, f)).join('\n') + '\n';
-    }
-  }
-  return sql;
-}
-
-function generateAllSQL() {
-  const SEPARATOR = '\x00TABLE_BREAK\x00';
-  let sql = tables.map(t => generateTableSQL(t)).join(SEPARATOR);
-  // SQL Server: 加 GO 分隔
-  if (currentDialect === 'sqlserver') {
-    sql = sql.split(SEPARATOR).map(block => block.trim()).filter(Boolean).join('\n\nGO\n\n') + '\n\nGO';
-  } else {
-    sql = sql.split(SEPARATOR).join('\n\n');
-  }
-  return sql;
-}
-
-// ══════════════════════════════════════════
-// SQL 校验器
-// ══════════════════════════════════════════
-
-// 各方言保留字
-const RESERVED_WORDS = {
-  oracle: ['ACCESS','ACCOUNT','ACTIVATE','ADD','ADMIN','ADVISE','AFTER','ALL','ALL_ROWS','ALLOCATE','ALTER','ALWAYS','ANALYZE','AND','ANY','ARCHIVE','ARCHIVELOG','ARRAY','AS','ASC','AT','ATTRIBUTE','AUDIT','AUTHID','AUTO','AUTOMATIC','AUTONOMOUS_TRANSACTION','AVG','BACKUP','BECOME','BEFORE','BEGIN','BETWEEN','BFILE','BITMAP','BLOB','BLOCK','BODY','BY','CACHE','CACHE_INSTANCES','CALL','CANCEL','CARDINALITY','CASCADE','CASE','CAST','CATEGORY','CHAIN','CHANGE','CHAR','CHAR_CS','CHARACTER','CHECK','CHECKPOINT','CHOOSE','CHR','CLOB','CLOSE','CLUSTER','COALESCE','COLLECT','COLUMN','COLUMNS','COMMENT','COMMIT','COMMITTED','COMPATIBILITY','COMPILE','COMPLETE','COMPOSITE_LIMIT','COMPRESS','COMPUTE','CONNECT','CONNECT_TIME','CONSTRAINT','CONSTRAINTS','CONTAINER','CONTENT','CONTINUE','CONTROLFILE','CONVERT','CORRUPTION','COST','CPU_PER_CALL','CPU_PER_SESSION','CREATE','CURRENT','CURRENT_USER','CURSOR','CYCLE','DANGLING','DATABASE','DATAFILE','DATAFILES','DATE','DBA','DBHIGH','DBLOW','DBMAC','DEALLOCATE','DEBUG','DEC','DECIMAL','DECLARE','DEFAULT','DEFERRABLE','DEFERRED','DEGREE','DELETE','DEMAND','DEREF','DESC','DIRECTORY','DISABLE','DISCONNECT','DISMOUNT','DISPOSE','DISTINCT','DISTINGUISHED','DO','DOUBLE','DROP','DUMP','DYNAMIC','EACH','ELSE','ENABLE','END','ENFORCE','ENTRY','ESCAPE','EXCEPT','EXCEPTIONS','EXCHANGE','EXCLUDE','EXCLUSIVE','EXECUTE','EXISTS','EXPIRE','EXPLAIN','EXTENT','EXTENTS','EXTERNAL','FAILED_LOGIN_ATTEMPTS','FAST','FETCH','FILE','FEW','FIRST','FLUSH','FOLLOWING','FOR','FORCE','FOREIGN','FREELIST','FREELISTS','FROM','FULL','FUNCTION','GENERATED','GLOBAL','GLOBALLY','GLOBAL_NAME','GRANT','GROUP','GROUPS','HASH','HAVING','HEADER','HEAP','HIGH','HOUR','IDENTIFIED','IDENTIFIER','IDLE_TIME','IMMEDIATE','IN','INCLUDING','INCREMENT','INDEX','INDEXED','INDEXES','INDICATOR','INDICES','INITIAL','INITIALLY','INITRANS','INSERT','INSTANCE','INSTANCES','INSTEAD','INT','INTEGER','INTERMEDIATE','INTERSECT','INTO','IS','ISOLATION','ISOLATION_LEVEL','KEEP','KEY','KILL','LABEL','LANGUAGE','LARGE','LAST','LATERAL','LAYER','LEVEL','LIBRARY','LIKE','LIMIT','LINK','LIST','LOB','LOCAL','LOCK','LOCKED','LOG','LOGFILE','LOGGING','LOGICAL','LOGICAL_READS_PER_CALL','LOGICAL_READS_PER_SESSION','LONG','LOOP','MANAGE','MASTER','MAX','MAXDATAFILES','MAXEXTENTS','MAXINSTANCES','MAXLOGFILES','MAXLOGHISTORY','MAXLOGMEMBERS','MAXSIZE','MAXTRANS','MAXVALUE','MIN','MINEXTENTS','MINUS','MINIMUM','MINVALUE','MLSLABEL','MODE','MODIFY','MODULE','MONEY','MONTH','MOUNT','MOVE','MTS_DISPATCHERS','MULTISET','NATIONAL','NCHAR','NCHAR_CS','NCLOB','NEED','NESTED','NETWORK','NEW','NEXT','NO','NOAUDIT','NOCACHE','NOCOMPRESS','NOCYCLE','NOLOGGING','NOMAXVALUE','NOMINVALUE','NONE','NOORDER','NOOVERRIDE','NOPARALLEL','NOPROMPT','NOREVERSE','NORMAL','NOSORT','NOT','NOTHING','NOWAIT','NULL','NUMBER','NUMERIC','NVARCHAR2','OBJECT','OBJNO','OCCURENCES','OF','OFF','OFFLINE','OID','OIDINDEX','OLD','ON','ONLINE','ONLY','OPEN','OPTIMAL','OPTIMIZER_GOAL','OPTION','OR','ORDER','OUTER','OUTLINE','OVERFLOW','OWN','PACKAGE','PARALLEL','PARTITION','PASSWORD','PASSWORD_GRACE_TIME','PASSWORD_LIFE_TIME','PASSWORD_LOCK_TIME','PASSWORD_REUSE_MAX','PASSWORD_REUSE_TIME','PASSWORD_VERIFY_FUNCTION','PCTFREE','PCTINCREASE','PCTTHRESHOLD','PCTUSED','PERCENT','PERMANENT','PLAN','PLSQL_DEBUG','POST_TRANSACTION','PRECEDING','PRECISION','PRESERVE','PRIMARY','PRIOR','PRIVATE','PRIVATE_SGA','PRIVILEGE','PRIVILEGES','PROCEDURE','PROFILE','PUBLIC','PURGE','QUEUE','QUOTA','RANGE','RAW','READ','READONLY','READ_PER_CALL','READ_PER_SESSION','REAL','REBUILD','RECOVER','RECOVERABLE','RECOVERY','REF','REFERENCES','REFERENCING','REFRESH','REGISTER','REJECT','RELATIONAL','RELY','RENAME','REPLACE','RESET','RESETLOGS','RESOURCE','RESTRICT','RESTRICTED','RETURN','RETURNING','REUSE','REVERSE','REVOKE','ROLE','ROLES','ROLLBACK','ROW','ROWID','ROWNUM','ROWS','RULE','SAMPLE','SAVEPOINT','SCHEMA','SCN','SCOPE','SECTION','SEGMENT','SELECT','SEQUENCE','SERIALIZABLE','SESSION','SESSION_CACHED_CURSORS','SESSIONS_PER_USER','SET','SHARE','SHARED','SHRINK','SIZE','SKIP','SMALLINT','SNAPSHOT','SOME','SORT','SPECIFICATION','SPLIT','SQL_TRACE','STANDBY','START','STATEMENT_ID','STATISTICS','STOP','STORAGE','STORE','STRUCTURE','SUBPARTITION','SUBSTITUTABLE','SUCCESSFUL','SUM','SWITCH','SYS','SYNONYM','SYSDATE','SYSDBA','SYSOPER','SYSTEM','TABLE','TABLESPACE','TABLESPACE_NO','TABNO','TEMPORARY','THAN','THE','THEN','THREAD','TIMESTAMP','TIME','TO','TOPLEVEL','TRACE','TRACING','TRANSACTION','TRANSACTIONAL','TRANSITIONAL','TRIGGER','TRIGGERS','TRUE','TRUNCATE','TYPE','UB2','UID','UNARCHIVED','UNDO','UNION','UNIQUE','UNLIMITED','UNLOCK','UNRECOVERABLE','UNTIL','UNUSABLE','UNUSED','UPDATE','USAGE','USE','USER','USING','VALIDATE','VALIDATION','VALUE','VALUES','VARCHAR','VARCHAR2','VARYING','VIEW','WHEN','WHENEVER','WHERE','WHILE','WITH','WORK','WRITE','XML','ZONE'],
-  mysql: ['ACCESSIBLE','ADD','ALL','ALTER','ANALYZE','AND','AS','ASC','ASENSITIVE','BEFORE','BETWEEN','BIGINT','BINARY','BLOB','BOTH','BY','CALL','CASCADE','CASE','CHANGE','CHAR','CHARACTER','CHECK','COLLATE','COLUMN','CONDITION','CONSTRAINT','CONTINUE','CONVERT','CREATE','CROSS','CUBE','CUME_DIST','CURRENT_DATE','CURRENT_TIME','CURRENT_TIMESTAMP','CURRENT_USER','CURSOR','DATABASE','DATABASES','DAY_HOUR','DAY_MICROSECOND','DAY_MINUTE','DAY_SECOND','DEC','DECIMAL','DECLARE','DEFAULT','DELAYED','DELETE','DENSE_RANK','DESC','DESCRIBE','DETERMINISTIC','DISTINCT','DISTINCTROW','DIV','DOUBLE','DROP','DUAL','EACH','ELSE','ELSEIF','ENCLOSED','ESCAPED','EXISTS','EXIT','EXPLAIN','FALSE','FETCH','FLOAT','FLOAT4','FLOAT8','FOR','FORCE','FOREIGN','FROM','FULLTEXT','FUNCTION','GENERATED','GET','GRANT','GROUP','GROUPING','GROUPS','HAVING','HIGH_PRIORITY','HOUR_MICROSECOND','HOUR_MINUTE','HOUR_SECOND','IF','IGNORE','IN','INDEX','INFILE','INNER','INOUT','INSENSITIVE','INSERT','INT','INT1','INT2','INT3','INT4','INT8','INTEGER','INTERVAL','INTO','IO_AFTER_GTIDS','IO_BEFORE_GTIDS','IS','ITERATE','JOIN','JSON','KEY','KEYS','KILL','LAG','LAST_INSERT_ID','LATERAL','LEAD','LEADING','LEAVE','LEFT','LIKE','LIMIT','LINEAR','LINES','LOAD','LOCALTIME','LOCALTIMESTAMP','LOCK','LONG','LONGBLOB','LONGTEXT','LOOP','LOW_PRIORITY','MASTER_BIND','MASTER_SSL_VERIFY_SERVER_CERT','MATCH','MAXVALUE','MEDIUMBLOB','MEDIUMINT','MEDIUMTEXT','MIDDLEINT','MINUTE_MICROSECOND','MINUTE_SECOND','MOD','MODIFIES','NATURAL','NOT','NO_WRITE_TO_BINLOG','NTH_VALUE','NTILE','NULL','NUMERIC','ON','OPTIMIZE','OPTIMIZER_COSTS','OPTION','OPTIONALLY','OR','ORDER','OUT','OUTER','OUTFILE','OVER','PARTITION','PERCENT_RANK','PRECISION','PRIMARY','PROCEDURE','PURGE','RANGE','RANK','READ','READ_WRITE','READS','REAL','RECURSIVE','REFERENCES','REGEXP','RELEASE','RENAME','REPEAT','REPLACE','REQUIRE','RESIGNAL','RESTRICT','RETURN','REVOKE','RIGHT','RLIKE','ROW','ROWS','ROW_COUNT','SCHEMA','SCHEMAS','SECOND_MICROSECOND','SELECT','SENSITIVE','SEPARATOR','SET','SHOW','SIGNAL','SMALLINT','SPATIAL','SPECIFIC','SQL','SQLEXCEPTION','SQLSTATE','SQLWARNING','SQL_BIG_RESULT','SQL_CALC_FOUND_ROWS','SQL_SMALL_RESULT','SSL','STARTING','STORED','STRAIGHT_JOIN','SYSTEM','TABLE','TERMINATED','THEN','TINYBLOB','TINYINT','TINYTEXT','TO','TRAILING','TRIGGER','TRUE','UNDO','UNION','UNIQUE','UNLOCK','UNSIGNED','UPDATE','USAGE','USE','USING','UTC_DATE','UTC_TIME','UTC_TIMESTAMP','VALUES','VARBINARY','VARCHAR','VARCHARACTER','VARYING','VIRTUAL','WHEN','WHERE','WHILE','WINDOW','WITH','WRITE','XOR','YEAR_MONTH','ZEROFILL'],
-  postgresql: ['ALL','ANALYSE','ANALYZE','AND','ANY','ARRAY','AS','ASC','ASYMMETRIC','AUTHORIZATION','BETWEEN','BINARY','BIT','BOTH','CASE','CAST','CHECK','COLLATE','COLLATION','COLUMN','CONCURRENTLY','CONSTRAINT','CREATE','CROSS','CURRENT_CATALOG','CURRENT_DATE','CURRENT_ROLE','CURRENT_SCHEMA','CURRENT_TIME','CURRENT_TIMESTAMP','CURRENT_USER','DEFAULT','DEFERRABLE','DESC','DISTINCT','DO','DOMAIN','DOUBLE','DROP','EACH','ELSE','END','EXCEPT','EXCLUDE','EXCLUDING','EXECUTE','EXISTS','EXPLAIN','FALSE','FETCH','FILTER','FOLLOWING','FOR','FOREIGN','FREEZE','FROM','FULL','FUNCTION','GRANT','GROUP','HAVING','ILIKE','IN','INITIALLY','INNER','INOUT','INSERT','INSTEAD','INTERSECT','INTO','IS','ISNULL','JOIN','LATERAL','LEADING','LEFT','LIKE','LIMIT','LOCALTIME','LOCALTIMESTAMP','NATURAL','NOT','NOTNULL','NULL','OFFSET','ON','ONLY','OR','ORDER','OUTER','OVER','OVERLAPS','PLACING','PRIMARY','REFERENCES','RETURNING','RIGHT','ROLLBACK','ROW','ROWS','SELECT','SESSION_USER','SET','SOME','SYMMETRIC','TABLE','TABLESAMPLE','THEN','TO','TRAILING','TRUE','UNION','UNIQUE','USER','USING','VARIADIC','VERBOSE','VIEW','WHEN','WHERE','WINDOW','WITH'],
-  sqlserver: ['ADD','ALL','ALTER','AND','ANY','AS','ASC','AUTHORIZATION','BACKUP','BEGIN','BETWEEN','BREAK','BROWSE','BULK','BY','CASCADE','CASE','CHECK','CHECKPOINT','CLOSE','CLUSTERED','COALESCE','COLLATE','COLUMN','COMMIT','COMPUTE','CONSTRAINT','CONTAINS','CONTAINSTABLE','CONTINUE','CONVERT','CREATE','CROSS','CURRENT','CURRENT_DATE','CURRENT_TIME','CURRENT_TIMESTAMP','CURRENT_USER','CURSOR','DATABASE','DBCC','DEALLOCATE','DECLARE','DEFAULT','DELETE','DENY','DESC','DISK','DISTINCT','DISTRIBUTED','DOUBLE','DROP','DUMP','ELSE','END','ERRLVL','ESCAPE','EXCEPT','EXEC','EXECUTE','EXISTS','EXIT','EXTERNAL','FETCH','FILE','FILLFACTOR','FOR','FOREIGN','FREETEXT','FREETEXTTABLE','FROM','FULL','FUNCTION','GOTO','GRANT','GROUP','HAVING','HOLDLOCK','IDENTITY','IDENTITYCOL','IDENTITY_INSERT','IF','IN','INDEX','INNER','INSERT','INTERSECT','INTO','IS','JOIN','KEY','KILL','LEFT','LIKE','LINENO','LOAD','MERGE','NATIONAL','NOCHECK','NONCLUSTERED','NOT','NULL','NULLIF','OF','OFF','OFFSETS','ON','OPEN','OPENDATASOURCE','OPENQUERY','OPENROWSET','OPENXML','OPTION','OR','ORDER','OUTER','OVER','PERCENT','PIVOT','PLAN','PRECISION','PRIMARY','PRINT','PROC','PROCEDURE','PUBLIC','RAISERROR','READ','READTEXT','RECONFIGURE','REFERENCES','REPLICATION','RESTORE','RESTRICT','RETURN','REVERT','REVOKE','RIGHT','ROLLBACK','ROWCOUNT','ROWGUIDCOL','RULE','SAVE','SCHEMA','SELECT','SESSION_USER','SET','SETUSER','SHUTDOWN','SOME','STATISTICS','SYSTEM_USER','TABLE','TABLESAMPLE','TEXTSIZE','THEN','TO','TOP','TRAN','TRANSACTION','TRIGGER','TRUNCATE','TSEQUAL','UNION','UNIQUE','UNPIVOT','UPDATE','UPDATETEXT','USE','USER','VALUES','VARYING','VIEW','WAITFOR','WHEN','WHERE','WHILE','WITH','WRITETEXT'],
-};
-
-// 各方言非法字符规则
-const NAME_RULES = {
-  oracle:    { pattern: /^[A-Za-z_][A-Za-z0-9_$#]*$/, msg: '只允许字母、数字、_、$、#，且不能以数字开头' },
-  mysql:     { pattern: /^[A-Za-z_][A-Za-z0-9_]*$/, msg: '只允许字母、数字、_，且不能以数字开头' },
-  postgresql:{ pattern: /^[A-Za-z_][A-Za-z0-9_]*$/, msg: '只允许字母、数字、_，且不能以数字开头' },
-  sqlserver: { pattern: /^[A-Za-z_][A-Za-z0-9_@#$]*$/, msg: '只允许字母、数字、_、@、#、$，且不能以数字开头' },
-};
-
-// 各方言数据类型正则
-const TYPE_PATTERNS = {
-  oracle: /^(VARCHAR2|NVARCHAR2|NUMBER|DATE|TIMESTAMP|CLOB|BLOB|CHAR|NCHAR|RAW|LONG|FLOAT|INTEGER|INT|SMALLINT|DECIMAL|REAL|DOUBLE|BOOLEAN|NCLOB|BFILE|UROWID|MLSLABEL)\s*(\([0-9,\s]+\))?$/i,
-  mysql: /^(TINYINT|SMALLINT|MEDIUMINT|INT|INTEGER|BIGINT|FLOAT|DOUBLE|DECIMAL|NUMERIC|DATE|DATETIME|TIMESTAMP|TIME|YEAR|CHAR|VARCHAR|BINARY|VARBINARY|TINYBLOB|BLOB|MEDIUMBLOB|LONGBLOB|TINYTEXT|TEXT|MEDIUMTEXT|LONGTEXT|ENUM|SET|JSON|BOOLEAN|BIT|SERIAL)\s*(\([0-9,\s]+\))?$/i,
-  postgresql: /^(SMALLINT|INTEGER|BIGINT|SERIAL|BIGSERIAL|SMALLSERIAL|REAL|DOUBLE|PRECISION|NUMERIC|DECIMAL|MONEY|CHAR|VARCHAR|TEXT|BYTEA|DATE|TIMESTAMP|TIMESTAMPTZ|TIME|TIMETZ|INTERVAL|BOOLEAN|BIT|UUID|JSON|JSONB|XML|CIDR|INET|MACADDR|POINT|LINE|LSEG|BOX|PATH|POLYGON|CIRCLE|ARRAY)\s*(\([0-9,\s]+\))?(\[\])?$/i,
-  sqlserver: /^(TINYINT|SMALLINT|INT|INTEGER|BIGINT|BIT|DECIMAL|NUMERIC|MONEY|SMALLMONEY|FLOAT|REAL|DATE|DATETIME|DATETIME2|DATETIMEOFFSET|SMALLDATETIME|TIME|CHAR|VARCHAR|NCHAR|NVARCHAR|TEXT|NTEXT|BINARY|VARBINARY|IMAGE|UNIQUEIDENTIFIER|SQL_VARIANT|TABLE|XML|ROWVERSION|TIMESTAMP|HIERARCHYID|GEOMETRY|GEOGRAPHY)\s*(\([0-9,\s]+\))?$/i,
-};
-
-/**
- * 校验所有表的 SQL 语法，返回错误列表
- * @returns {{ errors: Array<{table: string, field: string, type: string, msg: string}>, warnings: Array } }
- */
-function validateSQL() {
-  const d = currentDialect;
-  const reserved = (RESERVED_WORDS[d] || []).map(w => w.toUpperCase());
-  const nameRule = NAME_RULES[d];
-  const typePattern = TYPE_PATTERNS[d];
-  const errors = [];
-  const warnings = [];
-
-  if (!tables.length) {
-    warnings.push({ table: '-', field: '', type: 'warning', msg: '暂无表定义' });
-    return { errors, warnings };
-  }
-
-  // 检测表名重复
-  const tableNames = tables.map(t => t.name.toUpperCase());
-  tableNames.forEach((name, i) => {
-    if (name !== name.trim()) {
-      errors.push({ table: tables[i].name, field: '', type: 'error', msg: `表名首尾包含空格` });
-    }
-    if (!nameRule.pattern.test(tables[i].name)) {
-      errors.push({ table: tables[i].name, field: '', type: 'error', msg: `表名格式不合法：${nameRule.msg}` });
-    }
-    if (reserved.includes(name)) {
-      warnings.push({ table: tables[i].name, field: '', type: 'warning', msg: `表名 "${name}" 是保留字，建议加引号或改名` });
-    }
-    if (name.length > 128) {
-      warnings.push({ table: tables[i].name, field: '', type: 'warning', msg: `表名超过 128 个字符` });
-    }
+    html += `</div>`;
   });
 
-  const dupTableNames = tableNames.filter((n, i) => tableNames.indexOf(n) !== i);
-  if (dupTableNames.length) {
-    errors.push({ table: dupTableNames[0], field: '', type: 'error', msg: `存在重复表名: ${[...new Set(dupTableNames)].join(', ')}` });
-  }
+  html += `</div>`;
+  return html;
+}
+function computeDiff(oldTables, newTables) {
+  const result = [];
+  const oldMap = {};
+  oldTables.forEach(t => { oldMap[t.name.toUpperCase()] = t; });
+  const newMap = {};
+  newTables.forEach(t => { newMap[t.name.toUpperCase()] = t; });
 
-  tables.forEach(t => {
-    if (!t.fields.length) {
-      warnings.push({ table: t.name, field: '', type: 'warning', msg: `表 "${t.name}" 没有字段定义` });
-      return;
-    }
-
-    // 检测多个主键
-    const pkFields = t.fields.filter(f => f.pk);
-    if (pkFields.length > 1) {
-      errors.push({ table: t.name, field: pkFields.map(f => f.name).join(', '), type: 'error', msg: '不支持复合主键，每张表只能有 1 个主键字段' });
-    }
-
-    // 检测字段名重复
-    const fieldNames = t.fields.map(f => f.name.toUpperCase());
-    const dupFields = fieldNames.filter((n, i) => fieldNames.indexOf(n) !== i);
-    if (dupFields.length) {
-      errors.push({ table: t.name, field: [...new Set(dupFields)].join(', '), type: 'error', msg: `存在重复字段名: ${[...new Set(dupFields)].join(', ')}` });
-    }
-
-    t.fields.forEach(f => {
-      // 字段名检查
-      if (!f.name || !f.name.trim()) {
-        errors.push({ table: t.name, field: f.name || '(空)', type: 'error', msg: '字段名不能为空' });
-        return;
+  const allNames = new Set([...Object.keys(oldMap), ...Object.keys(newMap)]);
+  allNames.forEach(name => {
+    const oldT = oldMap[name];
+    const newT = newMap[name];
+    if (!oldT) {
+      result.push({ table: newT, status: 'added' });
+    } else if (!newT) {
+      result.push({ table: oldT, status: 'removed' });
+    } else {
+      const fieldChanges = computeFieldDiff(oldT.fields, newT.fields);
+      const nameChanged = oldT.name !== newT.name;
+      const commentChanged = oldT.comment !== newT.comment;
+      if (fieldChanges.length > 0 || nameChanged || commentChanged) {
+        result.push({ table: newT, oldTable: oldT, status: 'modified', fieldChanges, nameChanged, commentChanged });
+      } else {
+        result.push({ table: newT, status: 'unchanged' });
       }
-      if (f.name !== f.name.trim()) {
-        errors.push({ table: t.name, field: f.name, type: 'error', msg: '字段名首尾包含空格' });
-      }
-      if (!nameRule.pattern.test(f.name)) {
-        errors.push({ table: t.name, field: f.name, type: 'error', msg: `字段名格式不合法：${nameRule.msg}` });
-      }
-      if (reserved.includes(f.name.toUpperCase())) {
-        warnings.push({ table: t.name, field: f.name, type: 'warning', msg: `字段名 "${f.name}" 是保留字，建议加引号或改名` });
-      }
-
-      // 类型检查
-      if (!f.type || !f.type.trim()) {
-        errors.push({ table: t.name, field: f.name, type: 'error', msg: '字段类型不能为空' });
-      } else if (!typePattern.test(f.type.trim())) {
-        warnings.push({ table: t.name, field: f.name, type: 'warning', msg: `类型 "${f.type}" 不是标准 ${getDialect().label} 类型，请确认` });
-      }
-
-      // 主键不能为空
-      if (f.pk && f.nullable) {
-        warnings.push({ table: t.name, field: f.name, type: 'warning', msg: '主键字段建议设为 NOT NULL' });
-      }
-
-      // AUTO_INCREMENT 只限 MySQL
-      if (f.autoInc && d !== 'mysql') {
-        errors.push({ table: t.name, field: f.name, type: 'error', msg: `AUTO_INCREMENT 仅适用于 MySQL，当前方言为 ${getDialect().label}` });
-      }
-      // IDENTITY 只限 SQL Server
-      if (f.identity && d !== 'sqlserver') {
-        errors.push({ table: t.name, field: f.name, type: 'error', msg: `IDENTITY 仅适用于 SQL Server，当前方言为 ${getDialect().label}` });
-      }
-
-      // 注释中的单引号检查
-      if (f.comment && f.comment.includes("'")) {
-        warnings.push({ table: t.name, field: f.name, type: 'warning', msg: `注释中包含单引号，可能导致 SQL 语法错误` });
-      }
-    });
-    // 表注释单引号检查（放在字段循环外，避免重复）
-    if (t.comment && t.comment.includes("'")) {
-      warnings.push({ table: t.name, field: '', type: 'warning', msg: `表注释包含单引号，可能导致 SQL 语法错误` });
     }
   });
-
-  return { errors, warnings };
+  return result;
 }
 
-function runValidation() {
-  const { errors, warnings } = validateSQL();
-  const el = document.getElementById('validationPanel');
-  el.style.display = 'block';
-  const total = errors.length + warnings.length;
+function computeFieldDiff(oldFields, newFields) {
+  const changes = [];
+  const oldMap = {};
+  oldFields.forEach(f => { oldMap[f.name.toUpperCase()] = f; });
+  const newMap = {};
+  newFields.forEach(f => { newMap[f.name.toUpperCase()] = f; });
 
-  if (total === 0) {
-    el.className = 'validation-panel';
-    el.innerHTML = `<div class="val-header val-pass"><span class="val-icon">✅</span> 校验通过 · 无错误和警告</div>`;
-  } else {
-    let html = `<div class="val-header val-fail"><span class="val-icon">⚠️</span> 发现 <strong>${errors.length}</strong> 个错误，<strong>${warnings.length}</strong> 个警告</div>`;
-    html += '<div class="val-list">';
-    errors.forEach(e => {
-      html += `<div class="val-item val-error">
-        <span class="val-badge error">错误</span>
-        <span class="val-table">${escHtml(e.table)}</span>
-        ${e.field ? `<span class="val-field">${escHtml(e.field)}</span>` : ''}
-        <span class="val-msg">${escHtml(e.msg)}</span>
-      </div>`;
-    });
-    warnings.forEach(w => {
-      html += `<div class="val-item val-warning">
-        <span class="val-badge warning">警告</span>
-        <span class="val-table">${escHtml(w.table)}</span>
-        ${w.field ? `<span class="val-field">${escHtml(w.field)}</span>` : ''}
-        <span class="val-msg">${escHtml(w.msg)}</span>
-      </div>`;
-    });
-    html += '</div>';
-    el.innerHTML = html;
-    el.className = 'validation-panel val-show';
-  }
+  const allNames = new Set([...Object.keys(oldMap), ...Object.keys(newMap)]);
+  allNames.forEach(name => {
+    const oldF = oldMap[name];
+    const newF = newMap[name];
+    if (!oldF) {
+      changes.push({ field: newF, status: 'added' });
+    } else if (!newF) {
+      changes.push({ field: oldF, status: 'removed' });
+    } else {
+      const diffs = [];
+      if (oldF.type !== newF.type) diffs.push({ key: '类型', old: oldF.type, new: newF.type });
+      if (oldF.nullable !== newF.nullable) diffs.push({ key: 'NULL', old: oldF.nullable?'YES':'NO', new: newF.nullable?'YES':'NO' });
+      if (oldF.pk !== newF.pk) diffs.push({ key: 'PK', old: oldF.pk?'✓':'', new: newF.pk?'✓':'' });
+      if (oldF.defaultVal !== newF.defaultVal) diffs.push({ key: '默认值', old: oldF.defaultVal||'—', new: newF.defaultVal||'—' });
+      if (oldF.comment !== newF.comment) diffs.push({ key: '注释', old: oldF.comment||'—', new: newF.comment||'—' });
+      if (diffs.length > 0) changes.push({ field: newF, oldField: oldF, status: 'modified', diffs });
+    }
+  });
+  return changes;
 }
 
-function hideValidation() {
-  const el = document.getElementById('validationPanel');
-  el.style.display = 'none';
-  el.innerHTML = '';
-}
-
-// ══════════════════════════════════════════
-// SQL 高亮（方言感知）
-// ══════════════════════════════════════════
-function highlight(sql) {
-  const d = getDialect();
-  const keywords = d.highlightKeywords;
-  const types = d.highlightTypes;
-  let out = '', i = 0;
-  while (i < sql.length) {
-    if (sql[i] === '-' && sql[i+1] === '-') {
-      let end = sql.indexOf('\n', i); if (end === -1) end = sql.length;
-      out += `<span class="cmt">${esc(sql.slice(i, end))}</span>`; i = end; continue;
-    }
-    if (sql[i] === "'") {
-      let j = i + 1; while (j < sql.length && sql[j] !== "'") j++; j++;
-      out += `<span class="str">${esc(sql.slice(i, j))}</span>`; i = j; continue;
-    }
-    // SQL Server N'...' string
-    if (sql[i] === 'N' && sql[i+1] === "'") {
-      let j = i + 2; while (j < sql.length && sql[j] !== "'") j++; j++;
-      out += `<span class="str">${esc(sql.slice(i, j))}</span>`; i = j; continue;
-    }
-    if (/[A-Za-z_]/.test(sql[i])) {
-      let j = i; while (j < sql.length && /[\w]/.test(sql[j])) j++;
-      const w = sql.slice(i, j), wu = w.toUpperCase();
-      if (keywords.includes(wu)) out += `<span class="kw">${esc(w)}</span>`;
-      else if (types.some(t => wu.startsWith(t))) out += `<span class="fn">${esc(w)}</span>`;
-      else out += `<span class="col">${esc(w)}</span>`;
-      i = j; continue;
-    }
-    out += esc(sql[i]); i++;
-  }
-  return out;
-}
-function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-
+// ========== editor.js ==========
+// FluxSQL - 编辑器UI模块
 // ══════════════════════════════════════════
 // UI 渲染
 // ══════════════════════════════════════════
@@ -2942,7 +2777,32 @@ function addNewTable() {
 
 // ══════════════════════════════════════════
 // 预览
-// ══════════════════════════════════════════
+
+// ========== app.js ==========
+// FluxSQL - 应用主模块
+// 全局变量声明
+let currentDialect = 'oracle';
+let changeLog = [];       // 操作日志
+let snapshots = [];       // 快照列表
+let snapshotCounter = 0;
+let edgeCache = {};
+let expandedEdge = {};
+let tables = [];          // 表列表
+let activeIdx = -1;       // 当前选中的表索引
+let previewMode = 'current';  // 预览模式: current/all/history
+let fileName = '';        // 当前文件名
+let aiHistories = {};     // AI 对话历史
+let aiPanelOpen = true;   // AI 面板是否展开
+let isNewDbMode = false;  // 是否新建库模式
+let newDbMode = null;     // 新建库模式: ai/manual
+let newDbTables = [];     // 新建库模式下的表
+let dbManualCount = 0;    // 手动建表计数
+let aiModes = {};         // AI 模式设置
+let pendingPlan = {};     // 待执行的 AI 计划
+let toastTimer = null;    // Toast 定时器
+let dragSrc = null;       // 拖拽源
+
+// 初始化代码和事件绑定
 function setPreviewMode(mode) {
   previewMode = mode;
   document.getElementById('tab-current').classList.toggle('active', mode === 'current');
@@ -3456,6 +3316,9 @@ rebuildTypeList();
 // 关闭弹窗点击遮罩
 document.getElementById('apiModal').addEventListener('click', function(e) { if (e.target === this) closeApiModal(); });
 document.getElementById('newDbModal').addEventListener('click', function(e) { if (e.target === this) closeNewDbModal(); });
+</script>
+</body>
+</html>
 </script>
 </body>
 </html>
