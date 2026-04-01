@@ -295,6 +295,23 @@
   .ai-plan-btn.cancel:hover { border-color: var(--text3); color: var(--text2); }
   .ai-plan-btn:disabled { opacity: .4; cursor: not-allowed; }
 
+  /* ── SQL 校验面板 ── */
+  .validation-panel { display: none; border-bottom: 1px solid var(--border); }
+  .val-header { padding: 8px 14px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .val-pass { color: #3dd68c; background: rgba(61,214,140,.06); }
+  .val-fail { color: #f0a35e; background: rgba(240,163,94,.06); }
+  .val-icon { font-size: 14px; }
+  .val-list { max-height: 180px; overflow-y: auto; padding: 4px 14px 8px; }
+  .val-item { padding: 5px 8px; border-radius: 5px; font-size: 11.5px; display: flex; align-items: flex-start; gap: 6px; margin-bottom: 3px; flex-wrap: wrap; }
+  .val-error { background: rgba(255,80,80,.08); color: #ff8a8a; }
+  .val-warning { background: rgba(240,180,60,.06); color: #e0c070; }
+  .val-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px; font-weight: 700; flex-shrink: 0; margin-top: 1px; }
+  .val-badge.error { background: rgba(255,80,80,.18); color: #ff6b6b; }
+  .val-badge.warning { background: rgba(240,180,60,.15); color: #e0b040; }
+  .val-table { font-weight: 600; color: var(--text); }
+  .val-field { color: var(--accent); font-family: var(--font-mono); font-size: 11px; }
+  .val-msg { color: var(--text3); }
+
   /* ── 右侧SQL预览 ── */
   .preview-panel {
     width: 42%; flex-shrink: 0; border-left: 1px solid var(--border);
@@ -728,7 +745,9 @@
       <div class="spacer"></div>
       <span class="badge" id="dialectBadge" style="cursor:default">Oracle</span>
       <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px" id="copyBtn" onclick="copyCurrent()">复制</button>
+      <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;margin-left:4px" id="validateBtn" onclick="runValidation()" title="校验 SQL 语法">🔍 校验</button>
     </div>
+    <div class="validation-panel" id="validationPanel" style="display:none"></div>
     <div class="sql-preview" id="sqlPreview">
       <span style="color:var(--text3);font-style:italic">-- 选择表后这里显示生成的 SQL</span>
     </div>
@@ -2266,11 +2285,12 @@ function generateTableSQL(t) {
   sql += `CREATE TABLE ${t.name} (\n`;
   const lines = t.fields.map((f, i) => {
     let line = `    ${f.name} ${f.type}`;
+    // DEFAULT 在 NOT NULL 前（SQL 标准语法）
+    if (f.defaultVal) line += ` DEFAULT ${f.defaultVal}`;
     if (f.pk) line += ' NOT NULL PRIMARY KEY';
     else if (!f.nullable) line += ' NOT NULL';
     if (f.autoInc) line += ' AUTO_INCREMENT';
     if (f.identity) line += ' IDENTITY(1,1)';
-    if (f.defaultVal) line += ` DEFAULT ${f.defaultVal}`;
     const comma = i < t.fields.length - 1 ? ',' : '';
     if (d.comment.columnInCreate && f.comment) {
       // MySQL: COMMENT 是字段定义的一部分，逗号在注释后
@@ -2310,6 +2330,183 @@ function generateAllSQL() {
     sql = sql.split('\n\n').map(block => block.trim()).filter(Boolean).join('\n\nGO\n\n') + '\n\nGO';
   }
   return sql;
+}
+
+// ══════════════════════════════════════════
+// SQL 校验器
+// ══════════════════════════════════════════
+
+// 各方言保留字
+const RESERVED_WORDS = {
+  oracle: ['ACCESS','ACCOUNT','ACTIVATE','ADD','ADMIN','ADVISE','AFTER','ALL','ALL_ROWS','ALLOCATE','ALTER','ALWAYS','ANALYZE','AND','ANY','ARCHIVE','ARCHIVELOG','ARRAY','AS','ASC','AT','ATTRIBUTE','AUDIT','AUTHID','AUTO','AUTOMATIC','AUTONOMOUS_TRANSACTION','AVG','BACKUP','BECOME','BEFORE','BEGIN','BETWEEN','BFILE','BITMAP','BLOB','BLOCK','BODY','BY','CACHE','CACHE_INSTANCES','CALL','CANCEL','CARDINALITY','CASCADE','CASE','CAST','CATEGORY','CHAIN','CHANGE','CHAR','CHAR_CS','CHARACTER','CHECK','CHECKPOINT','CHOOSE','CHR','CLOB','CLOSE','CLUSTER','COALESCE','COLLECT','COLUMN','COLUMNS','COMMENT','COMMIT','COMMITTED','COMPATIBILITY','COMPILE','COMPLETE','COMPOSITE_LIMIT','COMPRESS','COMPUTE','CONNECT','CONNECT_TIME','CONSTRAINT','CONSTRAINTS','CONTAINER','CONTENT','CONTINUE','CONTROLFILE','CONVERT','CORRUPTION','COST','CPU_PER_CALL','CPU_PER_SESSION','CREATE','CURRENT','CURRENT_USER','CURSOR','CYCLE','DANGLING','DATABASE','DATAFILE','DATAFILES','DATE','DBA','DBHIGH','DBLOW','DBMAC','DEALLOCATE','DEBUG','DEC','DECIMAL','DECLARE','DEFAULT','DEFERRABLE','DEFERRED','DEGREE','DELETE','DEMAND','DEREF','DESC','DIRECTORY','DISABLE','DISCONNECT','DISMOUNT','DISPOSE','DISTINCT','DISTINGUISHED','DO','DOUBLE','DROP','DUMP','DYNAMIC','EACH','ELSE','ENABLE','END','ENFORCE','ENTRY','ESCAPE','EXCEPT','EXCEPTIONS','EXCHANGE','EXCLUDE','EXCLUSIVE','EXECUTE','EXISTS','EXPIRE','EXPLAIN','EXTENT','EXTENTS','EXTERNAL','FAILED_LOGIN_ATTEMPTS','FAST','FETCH','FILE','FEW','FIRST','FLUSH','FOLLOWING','FOR','FORCE','FOREIGN','FREELIST','FREELISTS','FROM','FULL','FUNCTION','GENERATED','GLOBAL','GLOBALLY','GLOBAL_NAME','GRANT','GROUP','GROUPS','HASH','HAVING','HEADER','HEAP','HIGH','HOUR','IDENTIFIED','IDENTIFIER','IDLE_TIME','IMMEDIATE','IN','INCLUDING','INCREMENT','INDEX','INDEXED','INDEXES','INDICATOR','INDICES','INITIAL','INITIALLY','INITRANS','INSERT','INSTANCE','INSTANCES','INSTEAD','INT','INTEGER','INTERMEDIATE','INTERSECT','INTO','IS','ISOLATION','ISOLATION_LEVEL','KEEP','KEY','KILL','LABEL','LANGUAGE','LARGE','LAST','LATERAL','LAYER','LEVEL','LIBRARY','LIKE','LIMIT','LINK','LIST','LOB','LOCAL','LOCK','LOCKED','LOG','LOGFILE','LOGGING','LOGICAL','LOGICAL_READS_PER_CALL','LOGICAL_READS_PER_SESSION','LONG','LOOP','MANAGE','MASTER','MAX','MAXDATAFILES','MAXEXTENTS','MAXINSTANCES','MAXLOGFILES','MAXLOGHISTORY','MAXLOGMEMBERS','MAXSIZE','MAXTRANS','MAXVALUE','MIN','MINEXTENTS','MINUS','MINIMUM','MINVALUE','MLSLABEL','MODE','MODIFY','MODULE','MONEY','MONTH','MOUNT','MOVE','MTS_DISPATCHERS','MULTISET','NATIONAL','NCHAR','NCHAR_CS','NCLOB','NEED','NESTED','NETWORK','NEW','NEXT','NO','NOAUDIT','NOCACHE','NOCOMPRESS','NOCYCLE','NOLOGGING','NOMAXVALUE','NOMINVALUE','NONE','NOORDER','NOOVERRIDE','NOPARALLEL','NOPROMPT','NOREVERSE','NORMAL','NOSORT','NOT','NOTHING','NOWAIT','NULL','NUMBER','NUMERIC','NVARCHAR2','OBJECT','OBJNO','OCCURENCES','OF','OFF','OFFLINE','OID','OIDINDEX','OLD','ON','ONLINE','ONLY','OPEN','OPTIMAL','OPTIMIZER_GOAL','OPTION','OR','ORDER','OUTER','OUTLINE','OVERFLOW','OWN','PACKAGE','PARALLEL','PARTITION','PASSWORD','PASSWORD_GRACE_TIME','PASSWORD_LIFE_TIME','PASSWORD_LOCK_TIME','PASSWORD_REUSE_MAX','PASSWORD_REUSE_TIME','PASSWORD_VERIFY_FUNCTION','PCTFREE','PCTINCREASE','PCTTHRESHOLD','PCTUSED','PERCENT','PERMANENT','PLAN','PLSQL_DEBUG','POST_TRANSACTION','PRECEDING','PRECISION','PRESERVE','PRIMARY','PRIOR','PRIVATE','PRIVATE_SGA','PRIVILEGE','PRIVILEGES','PROCEDURE','PROFILE','PUBLIC','PURGE','QUEUE','QUOTA','RANGE','RAW','READ','READONLY','READ_PER_CALL','READ_PER_SESSION','REAL','REBUILD','RECOVER','RECOVERABLE','RECOVERY','REF','REFERENCES','REFERENCING','REFRESH','REGISTER','REJECT','RELATIONAL','RELY','RENAME','REPLACE','RESET','RESETLOGS','RESOURCE','RESTRICT','RESTRICTED','RETURN','RETURNING','REUSE','REVERSE','REVOKE','ROLE','ROLES','ROLLBACK','ROW','ROWID','ROWNUM','ROWS','RULE','SAMPLE','SAVEPOINT','SCHEMA','SCN','SCOPE','SECTION','SEGMENT','SELECT','SEQUENCE','SERIALIZABLE','SESSION','SESSION_CACHED_CURSORS','SESSIONS_PER_USER','SET','SHARE','SHARED','SHRINK','SIZE','SKIP','SMALLINT','SNAPSHOT','SOME','SORT','SPECIFICATION','SPLIT','SQL_TRACE','STANDBY','START','STATEMENT_ID','STATISTICS','STOP','STORAGE','STORE','STRUCTURE','SUBPARTITION','SUBSTITUTABLE','SUCCESSFUL','SUM','SWITCH','SYS','SYNONYM','SYSDATE','SYSDBA','SYSOPER','SYSTEM','TABLE','TABLESPACE','TABLESPACE_NO','TABNO','TEMPORARY','THAN','THE','THEN','THREAD','TIMESTAMP','TIME','TO','TOPLEVEL','TRACE','TRACING','TRANSACTION','TRANSACTIONAL','TRANSITIONAL','TRIGGER','TRIGGERS','TRUE','TRUNCATE','TYPE','UB2','UID','UNARCHIVED','UNDO','UNION','UNIQUE','UNLIMITED','UNLOCK','UNRECOVERABLE','UNTIL','UNUSABLE','UNUSED','UPDATE','USAGE','USE','USER','USING','VALIDATE','VALIDATION','VALUE','VALUES','VARCHAR','VARCHAR2','VARYING','VIEW','WHEN','WHENEVER','WHERE','WHILE','WITH','WORK','WRITE','XML','ZONE'],
+  mysql: ['ACCESSIBLE','ADD','ALL','ALTER','ANALYZE','AND','AS','ASC','ASENSITIVE','BEFORE','BETWEEN','BIGINT','BINARY','BLOB','BOTH','BY','CALL','CASCADE','CASE','CHANGE','CHAR','CHARACTER','CHECK','COLLATE','COLUMN','CONDITION','CONSTRAINT','CONTINUE','CONVERT','CREATE','CROSS','CUBE','CUME_DIST','CURRENT_DATE','CURRENT_TIME','CURRENT_TIMESTAMP','CURRENT_USER','CURSOR','DATABASE','DATABASES','DAY_HOUR','DAY_MICROSECOND','DAY_MINUTE','DAY_SECOND','DEC','DECIMAL','DECLARE','DEFAULT','DELAYED','DELETE','DENSE_RANK','DESC','DESCRIBE','DETERMINISTIC','DISTINCT','DISTINCTROW','DIV','DOUBLE','DROP','DUAL','EACH','ELSE','ELSEIF','ENCLOSED','ESCAPED','EXISTS','EXIT','EXPLAIN','FALSE','FETCH','FLOAT','FLOAT4','FLOAT8','FOR','FORCE','FOREIGN','FROM','FULLTEXT','FUNCTION','GENERATED','GET','GRANT','GROUP','GROUPING','GROUPS','HAVING','HIGH_PRIORITY','HOUR_MICROSECOND','HOUR_MINUTE','HOUR_SECOND','IF','IGNORE','IN','INDEX','INFILE','INNER','INOUT','INSENSITIVE','INSERT','INT','INT1','INT2','INT3','INT4','INT8','INTEGER','INTERVAL','INTO','IO_AFTER_GTIDS','IO_BEFORE_GTIDS','IS','ITERATE','JOIN','JSON','KEY','KEYS','KILL','LAG','LAST_INSERT_ID','LATERAL','LEAD','LEADING','LEAVE','LEFT','LIKE','LIMIT','LINEAR','LINES','LOAD','LOCALTIME','LOCALTIMESTAMP','LOCK','LONG','LONGBLOB','LONGTEXT','LOOP','LOW_PRIORITY','MASTER_BIND','MASTER_SSL_VERIFY_SERVER_CERT','MATCH','MAXVALUE','MEDIUMBLOB','MEDIUMINT','MEDIUMTEXT','MIDDLEINT','MINUTE_MICROSECOND','MINUTE_SECOND','MOD','MODIFIES','NATURAL','NOT','NO_WRITE_TO_BINLOG','NTH_VALUE','NTILE','NULL','NUMERIC','ON','OPTIMIZE','OPTIMIZER_COSTS','OPTION','OPTIONALLY','OR','ORDER','OUT','OUTER','OUTFILE','OVER','PARTITION','PERCENT_RANK','PRECISION','PRIMARY','PROCEDURE','PURGE','RANGE','RANK','READ','READ_WRITE','READS','REAL','RECURSIVE','REFERENCES','REGEXP','RELEASE','RENAME','REPEAT','REPLACE','REQUIRE','RESIGNAL','RESTRICT','RETURN','REVOKE','RIGHT','RLIKE','ROW','ROWS','ROW_COUNT','SCHEMA','SCHEMAS','SECOND_MICROSECOND','SELECT','SENSITIVE','SEPARATOR','SET','SHOW','SIGNAL','SMALLINT','SPATIAL','SPECIFIC','SQL','SQLEXCEPTION','SQLSTATE','SQLWARNING','SQL_BIG_RESULT','SQL_CALC_FOUND_ROWS','SQL_SMALL_RESULT','SSL','STARTING','STORED','STRAIGHT_JOIN','SYSTEM','TABLE','TERMINATED','THEN','TINYBLOB','TINYINT','TINYTEXT','TO','TRAILING','TRIGGER','TRUE','UNDO','UNION','UNIQUE','UNLOCK','UNSIGNED','UPDATE','USAGE','USE','USING','UTC_DATE','UTC_TIME','UTC_TIMESTAMP','VALUES','VARBINARY','VARCHAR','VARCHARACTER','VARYING','VIRTUAL','WHEN','WHERE','WHILE','WINDOW','WITH','WRITE','XOR','YEAR_MONTH','ZEROFILL'],
+  postgresql: ['ALL','ANALYSE','ANALYZE','AND','ANY','ARRAY','AS','ASC','ASYMMETRIC','AUTHORIZATION','BETWEEN','BINARY','BIT','BOTH','CASE','CAST','CHECK','COLLATE','COLLATION','COLUMN','CONCURRENTLY','CONSTRAINT','CREATE','CROSS','CURRENT_CATALOG','CURRENT_DATE','CURRENT_ROLE','CURRENT_SCHEMA','CURRENT_TIME','CURRENT_TIMESTAMP','CURRENT_USER','DEFAULT','DEFERRABLE','DESC','DISTINCT','DO','DOMAIN','DOUBLE','DROP','EACH','ELSE','END','EXCEPT','EXCLUDE','EXCLUDING','EXECUTE','EXISTS','EXPLAIN','FALSE','FETCH','FILTER','FOLLOWING','FOR','FOREIGN','FREEZE','FROM','FULL','FUNCTION','GRANT','GROUP','HAVING','ILIKE','IN','INITIALLY','INNER','INOUT','INSERT','INSTEAD','INTERSECT','INTO','IS','ISNULL','JOIN','LATERAL','LEADING','LEFT','LIKE','LIMIT','LOCALTIME','LOCALTIMESTAMP','NATURAL','NOT','NOTNULL','NULL','OFFSET','ON','ONLY','OR','ORDER','OUTER','OVER','OVERLAPS','PLACING','PRIMARY','REFERENCES','RETURNING','RIGHT','ROLLBACK','ROW','ROWS','SELECT','SESSION_USER','SET','SOME','SYMMETRIC','TABLE','TABLESAMPLE','THEN','TO','TRAILING','TRUE','UNION','UNIQUE','USER','USING','VARIADIC','VERBOSE','VIEW','WHEN','WHERE','WINDOW','WITH'],
+  sqlserver: ['ADD','ALL','ALTER','AND','ANY','AS','ASC','AUTHORIZATION','BACKUP','BEGIN','BETWEEN','BREAK','BROWSE','BULK','BY','CASCADE','CASE','CHECK','CHECKPOINT','CLOSE','CLUSTERED','COALESCE','COLLATE','COLUMN','COMMIT','COMPUTE','CONSTRAINT','CONTAINS','CONTAINSTABLE','CONTINUE','CONVERT','CREATE','CROSS','CURRENT','CURRENT_DATE','CURRENT_TIME','CURRENT_TIMESTAMP','CURRENT_USER','CURSOR','DATABASE','DBCC','DEALLOCATE','DECLARE','DEFAULT','DELETE','DENY','DESC','DISK','DISTINCT','DISTRIBUTED','DOUBLE','DROP','DUMP','ELSE','END','ERRLVL','ESCAPE','EXCEPT','EXEC','EXECUTE','EXISTS','EXIT','EXTERNAL','FETCH','FILE','FILLFACTOR','FOR','FOREIGN','FREETEXT','FREETEXTTABLE','FROM','FULL','FUNCTION','GOTO','GRANT','GROUP','HAVING','HOLDLOCK','IDENTITY','IDENTITYCOL','IDENTITY_INSERT','IF','IN','INDEX','INNER','INSERT','INTERSECT','INTO','IS','JOIN','KEY','KILL','LEFT','LIKE','LINENO','LOAD','MERGE','NATIONAL','NOCHECK','NONCLUSTERED','NOT','NULL','NULLIF','OF','OFF','OFFSETS','ON','OPEN','OPENDATASOURCE','OPENQUERY','OPENROWSET','OPENXML','OPTION','OR','ORDER','OUTER','OVER','PERCENT','PIVOT','PLAN','PRECISION','PRIMARY','PRINT','PROC','PROCEDURE','PUBLIC','RAISERROR','READ','READTEXT','RECONFIGURE','REFERENCES','REPLICATION','RESTORE','RESTRICT','RETURN','REVERT','REVOKE','RIGHT','ROLLBACK','ROWCOUNT','ROWGUIDCOL','RULE','SAVE','SCHEMA','SELECT','SESSION_USER','SET','SETUSER','SHUTDOWN','SOME','STATISTICS','SYSTEM_USER','TABLE','TABLESAMPLE','TEXTSIZE','THEN','TO','TOP','TRAN','TRANSACTION','TRIGGER','TRUNCATE','TSEQUAL','UNION','UNIQUE','UNPIVOT','UPDATE','UPDATETEXT','USE','USER','VALUES','VARYING','VIEW','WAITFOR','WHEN','WHERE','WHILE','WITH','WRITETEXT'],
+};
+
+// 各方言非法字符规则
+const NAME_RULES = {
+  oracle:    { pattern: /^[A-Za-z_][A-Za-z0-9_$#]*$/, msg: '只允许字母、数字、_、$、#，且不能以数字开头' },
+  mysql:     { pattern: /^[A-Za-z_][A-Za-z0-9_]*$/, msg: '只允许字母、数字、_，且不能以数字开头' },
+  postgresql:{ pattern: /^[A-Za-z_][A-Za-z0-9_]*$/, msg: '只允许字母、数字、_，且不能以数字开头' },
+  sqlserver: { pattern: /^[A-Za-z_][A-Za-z0-9_@#$]*$/, msg: '只允许字母、数字、_、@、#、$，且不能以数字开头' },
+};
+
+// 各方言数据类型正则
+const TYPE_PATTERNS = {
+  oracle: /^(VARCHAR2|NVARCHAR2|NUMBER|DATE|TIMESTAMP|CLOB|BLOB|CHAR|NCHAR|RAW|LONG|FLOAT|INTEGER|INT|SMALLINT|DECIMAL|REAL|DOUBLE|BOOLEAN|NCLOB|BFILE|UROWID|MLSLABEL)\s*(\([0-9,\s]+\))?$/i,
+  mysql: /^(TINYINT|SMALLINT|MEDIUMINT|INT|INTEGER|BIGINT|FLOAT|DOUBLE|DECIMAL|NUMERIC|DATE|DATETIME|TIMESTAMP|TIME|YEAR|CHAR|VARCHAR|BINARY|VARBINARY|TINYBLOB|BLOB|MEDIUMBLOB|LONGBLOB|TINYTEXT|TEXT|MEDIUMTEXT|LONGTEXT|ENUM|SET|JSON|BOOLEAN|BIT|SERIAL)\s*(\([0-9,\s]+\))?$/i,
+  postgresql: /^(SMALLINT|INTEGER|BIGINT|SERIAL|BIGSERIAL|SMALLSERIAL|REAL|DOUBLE|PRECISION|NUMERIC|DECIMAL|MONEY|CHAR|VARCHAR|TEXT|BYTEA|DATE|TIMESTAMP|TIMESTAMPTZ|TIME|TIMETZ|INTERVAL|BOOLEAN|BIT|UUID|JSON|JSONB|XML|CIDR|INET|MACADDR|POINT|LINE|LSEG|BOX|PATH|POLYGON|CIRCLE|ARRAY)\s*(\([0-9,\s]+\))?(\[\])?$/i,
+  sqlserver: /^(TINYINT|SMALLINT|INT|INTEGER|BIGINT|BIT|DECIMAL|NUMERIC|MONEY|SMALLMONEY|FLOAT|REAL|DATE|DATETIME|DATETIME2|DATETIMEOFFSET|SMALLDATETIME|TIME|CHAR|VARCHAR|NCHAR|NVARCHAR|TEXT|NTEXT|BINARY|VARBINARY|IMAGE|UNIQUEIDENTIFIER|SQL_VARIANT|TABLE|XML|ROWVERSION|TIMESTAMP|HIERARCHYID|GEOMETRY|GEOGRAPHY)\s*(\([0-9,\s]+\))?$/i,
+};
+
+/**
+ * 校验所有表的 SQL 语法，返回错误列表
+ * @returns {{ errors: Array<{table: string, field: string, type: string, msg: string}>, warnings: Array } }
+ */
+function validateSQL() {
+  const d = currentDialect;
+  const reserved = (RESERVED_WORDS[d] || []).map(w => w.toUpperCase());
+  const nameRule = NAME_RULES[d];
+  const typePattern = TYPE_PATTERNS[d];
+  const errors = [];
+  const warnings = [];
+
+  if (!tables.length) {
+    warnings.push({ table: '-', field: '', type: 'warning', msg: '暂无表定义' });
+    return { errors, warnings };
+  }
+
+  // 检测表名重复
+  const tableNames = tables.map(t => t.name.toUpperCase());
+  tableNames.forEach((name, i) => {
+    if (name !== name.trim()) {
+      errors.push({ table: tables[i].name, field: '', type: 'error', msg: `表名首尾包含空格` });
+    }
+    if (!nameRule.pattern.test(tables[i].name)) {
+      errors.push({ table: tables[i].name, field: '', type: 'error', msg: `表名格式不合法：${nameRule.msg}` });
+    }
+    if (reserved.includes(name)) {
+      warnings.push({ table: tables[i].name, field: '', type: 'warning', msg: `表名 "${name}" 是保留字，建议加引号或改名` });
+    }
+    if (name.length > 128) {
+      warnings.push({ table: tables[i].name, field: '', type: 'warning', msg: `表名超过 128 个字符` });
+    }
+  });
+
+  const dupTableNames = tableNames.filter((n, i) => tableNames.indexOf(n) !== i);
+  if (dupTableNames.length) {
+    errors.push({ table: dupTableNames[0], field: '', type: 'error', msg: `存在重复表名: ${[...new Set(dupTableNames)].join(', ')}` });
+  }
+
+  tables.forEach(t => {
+    if (!t.fields.length) {
+      warnings.push({ table: t.name, field: '', type: 'warning', msg: `表 "${t.name}" 没有字段定义` });
+      return;
+    }
+
+    // 检测多个主键
+    const pkFields = t.fields.filter(f => f.pk);
+    if (pkFields.length > 1) {
+      errors.push({ table: t.name, field: pkFields.map(f => f.name).join(', '), type: 'error', msg: '不支持复合主键，每张表只能有 1 个主键字段' });
+    }
+
+    // 检测字段名重复
+    const fieldNames = t.fields.map(f => f.name.toUpperCase());
+    const dupFields = fieldNames.filter((n, i) => fieldNames.indexOf(n) !== i);
+    if (dupFields.length) {
+      errors.push({ table: t.name, field: [...new Set(dupFields)].join(', '), type: 'error', msg: `存在重复字段名: ${[...new Set(dupFields)].join(', ')}` });
+    }
+
+    t.fields.forEach(f => {
+      // 字段名检查
+      if (!f.name || !f.name.trim()) {
+        errors.push({ table: t.name, field: f.name || '(空)', type: 'error', msg: '字段名不能为空' });
+        return;
+      }
+      if (f.name !== f.name.trim()) {
+        errors.push({ table: t.name, field: f.name, type: 'error', msg: '字段名首尾包含空格' });
+      }
+      if (!nameRule.pattern.test(f.name)) {
+        errors.push({ table: t.name, field: f.name, type: 'error', msg: `字段名格式不合法：${nameRule.msg}` });
+      }
+      if (reserved.includes(f.name.toUpperCase())) {
+        warnings.push({ table: t.name, field: f.name, type: 'warning', msg: `字段名 "${f.name}" 是保留字，建议加引号或改名` });
+      }
+
+      // 类型检查
+      if (!f.type || !f.type.trim()) {
+        errors.push({ table: t.name, field: f.name, type: 'error', msg: '字段类型不能为空' });
+      } else if (!typePattern.test(f.type.trim())) {
+        warnings.push({ table: t.name, field: f.name, type: 'warning', msg: `类型 "${f.type}" 不是标准 ${getDialect().label} 类型，请确认` });
+      }
+
+      // 主键不能为空
+      if (f.pk && f.nullable) {
+        warnings.push({ table: t.name, field: f.name, type: 'warning', msg: '主键字段建议设为 NOT NULL' });
+      }
+
+      // AUTO_INCREMENT 只限 MySQL
+      if (f.autoInc && d !== 'mysql') {
+        errors.push({ table: t.name, field: f.name, type: 'error', msg: `AUTO_INCREMENT 仅适用于 MySQL，当前方言为 ${getDialect().label}` });
+      }
+      // IDENTITY 只限 SQL Server
+      if (f.identity && d !== 'sqlserver') {
+        errors.push({ table: t.name, field: f.name, type: 'error', msg: `IDENTITY 仅适用于 SQL Server，当前方言为 ${getDialect().label}` });
+      }
+
+      // 注释中的单引号检查
+      if (f.comment && f.comment.includes("'")) {
+        warnings.push({ table: t.name, field: f.name, type: 'warning', msg: `注释中包含单引号，可能导致 SQL 语法错误` });
+      }
+    });
+    // 表注释单引号检查（放在字段循环外，避免重复）
+    if (t.comment && t.comment.includes("'")) {
+      warnings.push({ table: t.name, field: '', type: 'warning', msg: `表注释包含单引号，可能导致 SQL 语法错误` });
+    }
+  });
+
+  return { errors, warnings };
+}
+
+function runValidation() {
+  const { errors, warnings } = validateSQL();
+  const el = document.getElementById('validationPanel');
+  el.style.display = 'block';
+  const total = errors.length + warnings.length;
+
+  if (total === 0) {
+    el.className = 'validation-panel';
+    el.innerHTML = `<div class="val-header val-pass"><span class="val-icon">✅</span> 校验通过 · 无错误和警告</div>`;
+  } else {
+    let html = `<div class="val-header val-fail"><span class="val-icon">⚠️</span> 发现 <strong>${errors.length}</strong> 个错误，<strong>${warnings.length}</strong> 个警告</div>`;
+    html += '<div class="val-list">';
+    errors.forEach(e => {
+      html += `<div class="val-item val-error">
+        <span class="val-badge error">错误</span>
+        <span class="val-table">${escHtml(e.table)}</span>
+        ${e.field ? `<span class="val-field">${escHtml(e.field)}</span>` : ''}
+        <span class="val-msg">${escHtml(e.msg)}</span>
+      </div>`;
+    });
+    warnings.forEach(w => {
+      html += `<div class="val-item val-warning">
+        <span class="val-badge warning">警告</span>
+        <span class="val-table">${escHtml(w.table)}</span>
+        ${w.field ? `<span class="val-field">${escHtml(w.field)}</span>` : ''}
+        <span class="val-msg">${escHtml(w.msg)}</span>
+      </div>`;
+    });
+    html += '</div>';
+    el.innerHTML = html;
+    el.className = 'validation-panel val-show';
+  }
+}
+
+function hideValidation() {
+  const el = document.getElementById('validationPanel');
+  el.style.display = 'none';
+  el.innerHTML = '';
 }
 
 // ══════════════════════════════════════════
