@@ -1,6 +1,5 @@
 // FluxSQL - 应用主模块
-// 全局变量声明
-let currentDialect = 'oracle';
+// 全局变量声明（部分已在 config.js 中声明）
 let changeLog = [];       // 操作日志
 let snapshots = [];       // 快照列表
 let snapshotCounter = 0;
@@ -77,7 +76,8 @@ function copyCurrent() {
 // ══════════════════════════════════════════
 // 拖拽排序
 // ══════════════════════════════════════════
-let dragSrc = null;
+// dragSrc 已在前面声明
+
 function setupDrag() {
   document.querySelectorAll('.field-row').forEach(row => {
     row.addEventListener('dragstart', e => { dragSrc = row; row.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; });
@@ -208,7 +208,8 @@ function setupColResize() {
 // ══════════════════════════════════════════
 // Toast
 // ══════════════════════════════════════════
-let toastTimer;
+// toastTimer 已在前面声明
+
 function showToast(msg) {
   const el = document.getElementById('toast');
   el.textContent = msg; el.style.display = 'block';

@@ -1,18 +1,8 @@
 // FluxSQL - AI 功能模块
 // 数据模型
 // ══════════════════════════════════════════
-let tables = [];
-let activeIdx = -1;
-let previewMode = 'current';
-let fileName = '';
-let aiHistories = {};
-let aiPanelOpen = true;
-
-// 新建库模式状态
-let isNewDbMode = false;       // 是否处于新建库模式
-let newDbMode = '';            // 'ai' | 'manual'
-let newDbTables = [];          // 新建库模式下暂存的表
-let dbManualCount = 0;         // 手动建表计数器
+// 全局变量在 app.js 中声明
+// 新建库模式状态、aiModes、pendingPlan 都在 app.js 中
 
 // ══════════════════════════════════════════
 // AI 配置
@@ -117,8 +107,7 @@ async function callLLM(messages, key, base, model, options = {}) {
 // ══════════════════════════════════════════
 // AI 模式状态（per-table）
 // ══════════════════════════════════════════
-let aiModes = {};        // { idx: 'plan' | 'act' }
-let pendingPlan = {};    // { idx: { userMsg, planItems } }
+// aiModes 和 pendingPlan 在 app.js 中声明
 
 function getAiMode(idx) { return aiModes[idx] || 'plan'; }
 function setAiMode(idx, mode) {

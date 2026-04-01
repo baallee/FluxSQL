@@ -1,10 +1,8 @@
 // FluxSQL - 变更历史模块
 // ══════════════════════════════════════════
 // 变更追踪引擎
+// 全局变量在 app.js 中声明
 // ══════════════════════════════════════════
-let changeLog = [];       // 操作日志
-let snapshots = [];       // 快照列表
-let snapshotCounter = 0;
 
 function now() {
   const d = new Date();
@@ -69,7 +67,7 @@ function clearAllHistory() {
 }
 
 // ── 边缘缓存：预计算相邻快照间的变更摘要 ──
-let edgeCache = {};
+// edgeCache 在 app.js 中声明
 
 function getEdgeSummary(snapA, snapB) {
   const key = `${snapA.id}-${snapB.id}`;
@@ -99,7 +97,7 @@ function getEdgeSummary(snapA, snapB) {
 }
 
 // ── 展开的边 ──
-let expandedEdge = null; // "snapAId-snapBId"
+// expandedEdge 在 app.js 中声明
 
 function toggleEdge(snapAId, snapBId) {
   const key = `${snapAId}-${snapBId}`;
