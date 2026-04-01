@@ -69,9 +69,15 @@
 
   /* ── 左侧表列表 ── */
   .sidebar {
-    width: 220px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border);
+    width: 220px; min-width: 140px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border);
     display: flex; flex-direction: column; overflow: hidden;
   }
+  /* 左侧分隔条 */
+  .sidebar-resizer {
+    width: 4px; background: transparent; cursor: col-resize; flex-shrink: 0;
+    transition: background .15s; position: relative; z-index: 5;
+  }
+  .sidebar-resizer:hover, .sidebar-resizer.dragging { background: var(--accent); }
   .sidebar-header {
     padding: 10px 12px; font-size: 11px; font-weight: 700; color: var(--text3);
     letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid var(--border);
@@ -79,16 +85,20 @@
   }
   .table-list { flex: 1; overflow-y: auto; padding: 6px; }
   .table-item {
-    padding: 7px 10px; border-radius: 6px; cursor: pointer; font-size: 13px; color: var(--text2);
+    padding: 7px 10px; border-radius: 6px; cursor: grab; font-size: 13px; color: var(--text2);
     display: flex; align-items: center; gap: 8px; transition: all .12s; word-break: break-all;
-    border: 1px solid transparent;
+    border: 1px solid transparent; user-select: none;
   }
   .table-item:hover { background: var(--surface2); color: var(--text); }
   .table-item.active { background: rgba(91,141,245,.15); color: var(--accent); border-color: rgba(91,141,245,.3); }
+  .table-item.dragging { opacity: 0.4; }
+  .table-item.drag-over { border-top: 2px solid var(--accent); padding-top: 5px; }
   .table-item .table-icon { font-size: 12px; flex-shrink: 0; }
   .table-comment { font-size: 11px; color: var(--text3); margin-top: 1px; }
   .table-item-inner { min-width: 0; }
   .table-name-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; font-weight: 600; }
+  .table-item .drag-handle { font-size: 11px; color: var(--text3); cursor: grab; opacity: 0.3; flex-shrink: 0; transition: opacity .15s; }
+  .table-item:hover .drag-handle { opacity: 1; }
 
   /* ── 中间编辑区 ── */
   .editor-panel {
@@ -709,7 +719,7 @@
 <div class="main">
 
   <!-- 左侧：表列表 -->
-  <div class="sidebar">
+  <div class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <span>数据表 <span class="badge" id="tableCount">0</span></span>
     </div>
@@ -720,6 +730,9 @@
       </div>
     </div>
   </div>
+
+  <!-- 左侧分隔条 -->
+  <div class="sidebar-resizer" id="sidebarResizer"></div>
 
   <!-- 中间：字段编辑区 -->
   <div class="editor-panel" id="editorPanel">
@@ -938,7 +951,9 @@ const DIALECTS = {
 - 主键设 pk:true, nullable:false
 - VARCHAR2 长度根据业务判断：姓名50，ID类36，编码50，描述200-500，备注1000
 - 时间字段用 TIMESTAMP
-- 保留原有字段，只按要求增删改
+- ⚠️【关键】必须原封不动保留原始结构中的所有字段！返回的 fields 数组必须包含原始 JSON 中的每一个字段。
+  仅当用户明确要求删除某个字段时，才允许移除该字段。如果用户没有提到删除，则所有原始字段必须出现在返回结果中。
+- ⚠️ 返回前请自检：对比原始字段数量与返回字段数量。如果字段数量变少了但用户没有要求删除，说明你遗漏了字段，请补回。
 - 只输出 JSON，不要 \`\`\`json 包裹，不要任何其他文字`,
   },
 
@@ -1013,7 +1028,9 @@ const DIALECTS = {
 - 主键设 pk:true, nullable:false
 - 字符串长度根据业务判断：姓名50，ID类36，编码50，描述200-500，备注500
 - 时间字段用 DATETIME
-- 保留原有字段，只按要求增删改
+- ⚠️【关键】必须原封不动保留原始结构中的所有字段！返回的 fields 数组必须包含原始 JSON 中的每一个字段。
+  仅当用户明确要求删除某个字段时，才允许移除该字段。如果用户没有提到删除，则所有原始字段必须出现在返回结果中。
+- ⚠️ 返回前请自检：对比原始字段数量与返回字段数量。如果字段数量变少了但用户没有要求删除，说明你遗漏了字段，请补回。
 - 只输出 JSON，不要 \`\`\`json 包裹，不要任何其他文字`,
   },
 
@@ -1085,7 +1102,9 @@ const DIALECTS = {
 - 主键设 pk:true, nullable:false
 - 字符串长度根据业务判断：姓名50，ID类36，编码50，描述200-500，备注500
 - 时间字段优先用 TIMESTAMPTZ
-- 保留原有字段，只按要求增删改
+- ⚠️【关键】必须原封不动保留原始结构中的所有字段！返回的 fields 数组必须包含原始 JSON 中的每一个字段。
+  仅当用户明确要求删除某个字段时，才允许移除该字段。如果用户没有提到删除，则所有原始字段必须出现在返回结果中。
+- ⚠️ 返回前请自检：对比原始字段数量与返回字段数量。如果字段数量变少了但用户没有要求删除，说明你遗漏了字段，请补回。
 - 只输出 JSON，不要 \`\`\`json 包裹，不要任何其他文字`,
   },
 
@@ -1158,7 +1177,9 @@ const DIALECTS = {
 - 主键设 pk:true, nullable:false
 - 字符串长度根据业务判断：姓名50，ID类36，编码50，描述200-500，备注500
 - 时间字段用 DATETIME2
-- 保留原有字段，只按要求增删改
+- ⚠️【关键】必须原封不动保留原始结构中的所有字段！返回的 fields 数组必须包含原始 JSON 中的每一个字段。
+  仅当用户明确要求删除某个字段时，才允许移除该字段。如果用户没有提到删除，则所有原始字段必须出现在返回结果中。
+- ⚠️ 返回前请自检：对比原始字段数量与返回字段数量。如果字段数量变少了但用户没有要求删除，说明你遗漏了字段，请补回。
 - 只输出 JSON，不要 \`\`\`json 包裹，不要任何其他文字`,
   },
 };
@@ -1771,13 +1792,20 @@ async function handleAiSend(idx) {
       const oldName = t.name;
       tables[idx].name = newTable.name;
       tables[idx].comment = newTable.comment || tables[idx].comment;
-      tables[idx].fields = newTable.fields;
+      // 字段保护：自动补回 AI 遗漏的原始字段
+      const { fields: protectedFields, restored } = protectFields(oldFields, [...newTable.fields], userMsg);
+      tables[idx].fields = protectedFields;
+      newTable.fields = protectedFields;
       removeThinking(idx);
 
       // 执行后快照
       const postSnapId = saveAutoSnapshot('AI 改后');
 
-      const summary = buildChangeSummary(oldFields, newTable.fields, oldName, newTable.name);
+      let summary = buildChangeSummary(oldFields, newTable.fields, oldName, newTable.name);
+      if (restored.length) {
+        summary += `\n\n⚠️ 自动补回了 ${restored.length} 个被遗漏的字段：**${restored.join('、')}**`;
+        showToast(`⚠️ AI 遗漏了 ${restored.length} 个字段，已自动补回`);
+      }
       addAiMsg(idx, 'assistant', summary);
       logAction('ai-modify', `AI 修改了表 <span class="highlight">${escHtml(newTable.name)}</span>：${escHtml(summary.replace(/\*\*/g,''))}`);
       if (!aiHistories[idx]) aiHistories[idx] = [];
@@ -1914,12 +1942,20 @@ async function executePlan(idx) {
     const oldName = t.name;
     tables[idx].name = newTable.name;
     tables[idx].comment = newTable.comment || tables[idx].comment;
-    tables[idx].fields = newTable.fields;
+    // Plan 模式：根据计划中的删除列表判断，只补回不在删除列表中的遗漏字段
+    const delFieldNames = (plan.planItems || []).filter(i => i.type === 'del').map(i => i.text);
+    const { fields: protectedFields, restored } = protectFields(oldFields, [...newTable.fields], delFieldNames.length ? '删除 ' + delFieldNames.join(', ') : '');
+    tables[idx].fields = protectedFields;
+    newTable.fields = protectedFields;
 
     // 执行后快照
     const postSnapId = saveAutoSnapshot('AI 改后');
 
-    const summary = buildChangeSummary(oldFields, newTable.fields, oldName, newTable.name);
+    let summary = buildChangeSummary(oldFields, newTable.fields, oldName, newTable.name);
+    if (restored.length) {
+      summary += `\n\n⚠️ 自动补回了 ${restored.length} 个被遗漏的字段：**${restored.join('、')}**`;
+      showToast(`⚠️ AI 遗漏了 ${restored.length} 个字段，已自动补回`);
+    }
     addAiMsg(idx, 'assistant', summary);
     // 标记 plan 卡片为已执行
     const planCard = document.querySelector(`#ai-history-${idx} [data-msg-type="plan"]`);
@@ -1956,6 +1992,44 @@ function saveAutoSnapshot(label) {
   edgeCache = {};
   if (previewMode === 'history') renderHistoryPanel();
   return snap.id;
+}
+
+/**
+ * 字段保护函数 —— 自动补回 AI 遗漏的原始字段
+ * 原理：对比旧字段和新字段，将旧表中存在但新表中不存在的字段（视为意外遗漏）补回。
+ * 仅在用户消息中未明确提到删除该字段时才补回。
+ * @param {Array} oldFields - 修改前的字段列表
+ * @param {Array} newFields - AI 返回的字段列表
+ * @param {string} userMsg - 用户的修改要求（用于判断是否主动删除）
+ * @returns {{ fields: Array, restored: string[] }} - 保护后的字段列表 + 被补回的字段名
+ */
+function protectFields(oldFields, newFields, userMsg) {
+  const newNames = new Set(newFields.map(f => f.name.toUpperCase()));
+  const restored = [];
+  // 用户消息中是否有明确的删除意图
+  const hasDelIntent = /删除|移除|去掉|DROP|REMOVE|DEL/i.test(userMsg || '');
+
+  for (const oldField of oldFields) {
+    const oldName = oldField.name.toUpperCase();
+    // 如果新字段中不存在该字段
+    if (!newNames.has(oldName)) {
+      if (hasDelIntent) {
+        // 用户提到了删除，检查是否是针对性的（提及了该字段名或"全部/所有"）
+        const isSpecific = new RegExp(oldField.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(userMsg)
+          || /全部|所有|系统字段/.test(userMsg);
+        if (!isSpecific) {
+          // 用户提到了删除但没指这个字段 → 补回
+          newFields.push({ ...oldField });
+          restored.push(oldField.name);
+        }
+      } else {
+        // 用户没提到删除 → 直接补回（视为 AI 遗漏）
+        newFields.push({ ...oldField });
+        restored.push(oldField.name);
+      }
+    }
+  }
+  return { fields: newFields, restored };
 }
 
 function buildChangeSummary(oldFields, newFields, oldName, newName) {
@@ -2151,11 +2225,18 @@ function handleAiSendRetry(idx, userMsg) {
       const oldName = t.name;
       tables[idx].name = newTable.name;
       tables[idx].comment = newTable.comment || tables[idx].comment;
-      tables[idx].fields = newTable.fields;
+      // 字段保护：自动补回 AI 遗漏的原始字段
+      const { fields: protectedFields, restored } = protectFields(oldFields, [...newTable.fields], userMsg);
+      tables[idx].fields = protectedFields;
+      newTable.fields = protectedFields;
       removeThinking(idx);
 
       const postSnapId = saveAutoSnapshot('AI 改后');
-      const summary = buildChangeSummary(oldFields, newTable.fields, oldName, newTable.name);
+      let summary = buildChangeSummary(oldFields, newTable.fields, oldName, newTable.name);
+      if (restored.length) {
+        summary += `\n\n⚠️ 自动补回了 ${restored.length} 个被遗漏的字段：**${restored.join('、')}**`;
+        showToast(`⚠️ AI 遗漏了 ${restored.length} 个字段，已自动补回`);
+      }
       addAiMsg(idx, 'assistant', summary);
       logAction('ai-modify', `AI 修改了表 <span class="highlight">${escHtml(newTable.name)}</span>：${escHtml(summary.replace(/\*\*/g,''))}`);
       if (!aiHistories[idx]) aiHistories[idx] = [];
@@ -2261,9 +2342,24 @@ function parseFields(body) {
 
 function splitFields(body) {
   const result = []; let depth = 0, cur = '';
+  let inLineComment = false; // 当前是否在行注释中（-- 开头到行末）
   for (let i = 0; i < body.length; i++) {
     const ch = body[i];
-    if (ch === '(') { depth++; cur += ch; }
+    // 检测行注释起始：连续两个 - 且不在引号内
+    if (!inLineComment && ch === '-' && i + 1 < body.length && body[i + 1] === '-') {
+      inLineComment = true;
+      cur += ch;
+    }
+    // 行注释在换行时结束
+    else if (inLineComment && (ch === '\n' || ch === '\r')) {
+      inLineComment = false;
+      cur += ch;
+    }
+    else if (inLineComment) {
+      // 在行注释内，逗号不作为字段分隔符，直接追加
+      cur += ch;
+    }
+    else if (ch === '(') { depth++; cur += ch; }
     else if (ch === ')') { depth--; cur += ch; }
     else if (ch === ',' && depth === 0) { result.push(cur); cur = ''; }
     else cur += ch;
@@ -2281,6 +2377,15 @@ function generateTableSQL(t) {
   if (!t || !t.fields.length) return `-- 表 ${t ? t.name : ''} 暂无字段`;
   const d = getDialect();
   let sql = '';
+  // DROP TABLE 语句（各方言适配）
+  if (currentDialect === 'oracle') {
+    sql += `DROP TABLE ${t.name} PURGE;\n`;
+  } else if (currentDialect === 'sqlserver') {
+    sql += `IF OBJECT_ID(N'${t.name}', N'U') IS NOT NULL DROP TABLE ${t.name};\n`;
+  } else {
+    // MySQL / PostgreSQL
+    sql += `DROP TABLE IF EXISTS ${t.name};\n`;
+  }
   if (t.comment && !d.comment.tableInCreate) sql += `-- ${t.comment}\n`;
   sql += `CREATE TABLE ${t.name} (\n`;
   const lines = t.fields.map((f, i) => {
@@ -2324,10 +2429,13 @@ function generateTableSQL(t) {
 }
 
 function generateAllSQL() {
-  let sql = tables.map(t => generateTableSQL(t)).join('\n\n');
+  const SEPARATOR = '\x00TABLE_BREAK\x00';
+  let sql = tables.map(t => generateTableSQL(t)).join(SEPARATOR);
   // SQL Server: 加 GO 分隔
   if (currentDialect === 'sqlserver') {
-    sql = sql.split('\n\n').map(block => block.trim()).filter(Boolean).join('\n\nGO\n\n') + '\n\nGO';
+    sql = sql.split(SEPARATOR).map(block => block.trim()).filter(Boolean).join('\n\nGO\n\n') + '\n\nGO';
+  } else {
+    sql = sql.split(SEPARATOR).join('\n\n');
   }
   return sql;
 }
@@ -2556,7 +2664,8 @@ function renderTableList() {
     return;
   }
   list.innerHTML = tables.map((t, i) => `
-    <div class="table-item ${i === activeIdx ? 'active' : ''}" onclick="selectTable(${i})">
+    <div class="table-item ${i === activeIdx ? 'active' : ''}" draggable="true" data-idx="${i}" onclick="selectTable(${i})">
+      <span class="drag-handle">⠿</span>
       <span class="table-icon">🗃️</span>
       <div class="table-item-inner">
         <div class="table-name-text">${t.name}</div>
@@ -2564,6 +2673,54 @@ function renderTableList() {
       </div>
     </div>
   `).join('');
+
+  // 绑定拖拽事件
+  bindTableDragEvents(list);
+}
+
+// 表列表拖拽排序
+function bindTableDragEvents(list) {
+  let dragIdx = null;
+
+  list.querySelectorAll('.table-item').forEach(item => {
+    item.addEventListener('dragstart', e => {
+      dragIdx = parseInt(item.dataset.idx);
+      item.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      // 防止 click 事件触发
+      item._isDragging = true;
+    });
+    item.addEventListener('dragend', () => {
+      item.classList.remove('dragging');
+      list.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+      // 延迟清除标记，避免触发 click
+      setTimeout(() => { item._isDragging = false; }, 50);
+    });
+    item.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      list.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+      item.classList.add('drag-over');
+    });
+    item.addEventListener('dragleave', () => {
+      item.classList.remove('drag-over');
+    });
+    item.addEventListener('drop', e => {
+      e.preventDefault();
+      const dropIdx = parseInt(item.dataset.idx);
+      if (dragIdx !== null && dragIdx !== dropIdx) {
+        const [moved] = tables.splice(dragIdx, 1);
+        tables.splice(dropIdx, 0, moved);
+        // 保持 activeIdx 指向同一张表
+        if (activeIdx === dragIdx) activeIdx = dropIdx;
+        else if (dragIdx < activeIdx && dropIdx >= activeIdx) activeIdx--;
+        else if (dragIdx > activeIdx && dropIdx <= activeIdx) activeIdx++;
+        logAction('reorder', `表排序调整`);
+        renderTableList(); updatePreview();
+      }
+      dragIdx = null;
+    });
+  });
 }
 
 function selectTable(idx) { activeIdx = idx; renderTableList(); renderEditor(); updatePreview(); }
@@ -2938,7 +3095,7 @@ function setupColResize() {
 }
 
 // ══════════════════════════════════════════
-// 分割线拖拽
+// 分割线拖拽（右侧）
 // ══════════════════════════════════════════
 (function() {
   const resizer = document.getElementById('resizer'), preview = document.getElementById('previewPanel');
@@ -2946,6 +3103,27 @@ function setupColResize() {
   resizer.addEventListener('mousedown', e => { dragging = true; startX = e.clientX; startW = preview.offsetWidth; resizer.classList.add('dragging'); document.body.style.userSelect = 'none'; });
   document.addEventListener('mousemove', e => { if (!dragging) return; const diff = startX - e.clientX; preview.style.width = Math.max(260, Math.min(window.innerWidth * .7, startW + diff)) + 'px'; });
   document.addEventListener('mouseup', () => { dragging = false; resizer.classList.remove('dragging'); document.body.style.userSelect = ''; });
+})();
+
+// ══════════════════════════════════════════
+// 左侧分隔条拖拽
+// ══════════════════════════════════════════
+(function() {
+  const resizer = document.getElementById('sidebarResizer'), sidebar = document.getElementById('sidebar');
+  let dragging = false, startX, startW;
+  resizer.addEventListener('mousedown', e => {
+    dragging = true; startX = e.clientX; startW = sidebar.offsetWidth;
+    resizer.classList.add('dragging'); document.body.style.userSelect = 'none'; e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const diff = e.clientX - startX;
+    sidebar.style.width = Math.max(140, Math.min(window.innerWidth * .5, startW + diff)) + 'px';
+  });
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false; resizer.classList.remove('dragging'); document.body.style.userSelect = '';
+  });
 })();
 
 // ══════════════════════════════════════════
