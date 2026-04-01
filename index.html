@@ -2271,13 +2271,16 @@ function generateTableSQL(t) {
     if (f.autoInc) line += ' AUTO_INCREMENT';
     if (f.identity) line += ' IDENTITY(1,1)';
     if (f.defaultVal) line += ` DEFAULT ${f.defaultVal}`;
-    // 注释
+    const comma = i < t.fields.length - 1 ? ',' : '';
     if (d.comment.columnInCreate && f.comment) {
-      line += ` COMMENT '${f.comment}'`;
+      // MySQL: COMMENT 是字段定义的一部分，逗号在注释后
+      line += ` COMMENT '${f.comment}'` + comma;
     } else if (d.comment.inline && f.comment) {
-      line += d.comment.inline(f);
+      // Oracle/PG/SQL Server: -- 是行尾注释，逗号必须在注释符号之前
+      line += comma + d.comment.inline(f);
+    } else {
+      line += comma;
     }
-    line += i < t.fields.length - 1 ? ',' : '';
     return line;
   });
   sql += lines.join('\n') + '\n)';
