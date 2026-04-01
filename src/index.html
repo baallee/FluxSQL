@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FluxSQL — AI 建表工坊</title>
+
+<!-- 开发时：外部链接 CSS -->
+<link rel="stylesheet" href="css/style.css">
+
+<!-- 发布时：内联 CSS（构建脚本替换） -->
+<!-- <style> ... </style> -->
+</head>
+<body>
+
+<!-- 顶栏 -->
+<div class="topbar">
+  <h1>⚡ FluxSQL</h1>
+  <div class="topbar-sep"></div>
+  <label class="btn btn-primary" style="cursor:pointer" id="openFileLabel">
+    📂 打开 SQL 文件
+    <input type="file" accept=".sql,.txt" id="fileInput" style="display:none">
+  </label>
+  <button class="btn btn-ghost" onclick="addNewTable()" id="btnNewTable">＋ 新建表</button>
+  <button class="btn btn-ai" onclick="openNewDbModal()" id="btnNewDb" style="margin-left:2px">🏗 新建库</button>
+  <span class="db-mode-badge" id="dbModeBadge">✨ 新建库模式</span>
+  <div class="spacer"></div>
+  <span class="dialect-label">方言</span>
+  <div class="dialect-selector" id="dialectSelector">
+    <button class="dialect-btn active" data-dialect="oracle" onclick="switchDialect('oracle')">Oracle</button>
+    <button class="dialect-btn" data-dialect="mysql" onclick="switchDialect('mysql')">MySQL</button>
+    <button class="dialect-btn" data-dialect="postgresql" onclick="switchDialect('postgresql')">PostgreSQL</button>
+    <button class="dialect-btn" data-dialect="sqlserver" onclick="switchDialect('sqlserver')">SQL Server</button>
+  </div>
+  <div class="topbar-sep"></div>
+  <span class="file-info" id="fileInfo">未加载文件</span>
+  <div class="topbar-sep"></div>
+  <button class="btn btn-ai" onclick="openApiModal()">🤖 AI 设置</button>
+  <button class="btn btn-ghost" onclick="copyAllSQL()">📋 复制全部</button>
+  <button class="btn btn-success" onclick="downloadSQL()">💾 导出 .sql</button>
+</div>
+
+<!-- 主体 -->
+<div class="main">
+
+  <!-- 左侧：表列表 -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <span>数据表 <span class="badge" id="tableCount">0</span></span>
+    </div>
+    <div class="table-list" id="tableList">
+      <div class="empty-state" style="margin-top:30px">
+        <div class="icon">📁</div>
+        <p>打开 SQL 文件</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 左侧分隔条 -->
+  <div class="sidebar-resizer" id="sidebarResizer"></div>
+
+  <!-- 中间：字段编辑区 -->
+  <div class="editor-panel" id="editorPanel">
+    <div class="empty-state">
+      <div class="icon">🗃️</div>
+      <p>选择左侧的表开始编辑</p>
+      <p style="font-size:12px">或点击「打开 SQL 文件」加载现有脚本</p>
+    </div>
+  </div>
+
+  <!-- 分割线 -->
+  <div class="resizer" id="resizer"></div>
+
+  <!-- 右侧：SQL 预览 -->
+  <div class="preview-panel" id="previewPanel">
+    <div class="preview-header">
+      <span class="preview-title">SQL 预览</span>
+      <div class="preview-mode-tabs">
+        <button class="tab-btn active" id="tab-current" onclick="setPreviewMode('current')">当前表</button>
+        <button class="tab-btn" id="tab-all" onclick="setPreviewMode('all')">全部</button>
+        <button class="tab-btn" id="tab-history" onclick="setPreviewMode('history')">历史</button>
+      </div>
+      <div class="spacer"></div>
+      <span class="badge" id="dialectBadge" style="cursor:default">Oracle</span>
+      <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px" id="copyBtn" onclick="copyCurrent()">复制</button>
+      <button class="btn btn-ghost" style="padding:3px 8px;font-size:11px;margin-left:4px" id="validateBtn" onclick="runValidation()" title="校验 SQL 语法">🔍 校验</button>
+    </div>
+    <div class="validation-panel" id="validationPanel" style="display:none"></div>
+    <div class="sql-preview" id="sqlPreview">
+      <span style="color:var(--text3);font-style:italic">-- 选择表后这里显示生成的 SQL</span>
+    </div>
+    <div class="history-panel" id="historyPanel" style="display:none">
+      <div class="history-toolbar">
+        <span style="font-size:12px;font-weight:700;color:var(--text3);letter-spacing:.5px">版本历史</span>
+        <div class="spacer"></div>
+        <button class="snap-btn" style="padding:3px 10px;font-size:11px" onclick="saveSnapshot()" title="保存当前状态为快照">📸 保存快照</button>
+        <button class="snap-btn" style="padding:3px 10px;font-size:11px" onclick="clearAllHistory()" title="清空所有历史">🗑 清空</button>
+      </div>
+      <div class="history-tree" id="historyTree">
+        <div style="color:var(--text3);font-size:12px;text-align:center;padding:30px 0">暂无变更记录</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- API Key 配置弹窗 -->
+<div class="modal-overlay hidden" id="apiModal">
+  <div class="modal">
+    <h2>🤖 AI 助手配置</h2>
+    <p>配置后可在表编辑区用自然语言修改表结构，AI 会直接修改当前表的字段。</p>
+    <label>API 提供商</label>
+    <select id="apiProvider" onchange="onProviderChange()">
+      <option value="openai">OpenAI（ChatGPT）</option>
+      <option value="deepseek">DeepSeek</option>
+      <option value="zhipu">智谱 GLM</option>
+      <option value="qwen">阿里通义千问</option>
+      <option value="custom">自定义 (OpenAI 兼容)</option>
+    </select>
+    <label>API Key</label>
+    <input type="password" id="apiKey" placeholder="sk-..." autocomplete="off">
+    <label>API Base URL <span style="color:var(--text3);font-weight:400">（自定义时填写）</span></label>
+    <input type="text" id="apiBase" placeholder="https://api.openai.com/v1">
+    <label>模型</label>
+    <input type="text" id="apiModel" placeholder="gpt-4o-mini">
+    <p class="modal-hint">API Key 仅存储在本地浏览器中，不会上传任何服务器。<br>建议使用有足够权限的 Key，对话内容仅含当前表结构。</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeApiModal()">取消</button>
+      <button class="btn btn-ai" onclick="testApi()">测试连接</button>
+      <button class="btn btn-primary" onclick="saveApiConfig()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 新建库弹窗 -->
+<div class="modal-overlay hidden db-modal" id="newDbModal">
+  <div class="modal">
+    <h2>🏗 新建数据库</h2>
+    <p>从零开始创建多张数据表。选择建表方式后开始：</p>
+
+    <div class="db-mode-cards">
+      <div class="db-mode-card" id="dbCardAi" onclick="selectDbMode('ai')">
+        <div class="card-icon">🤖</div>
+        <div class="card-title">AI 智能建表</div>
+        <div class="card-desc">用自然语言描述业务需求<br>AI 自动生成多张表结构</div>
+      </div>
+      <div class="db-mode-card" id="dbCardManual" onclick="selectDbMode('manual')">
+        <div class="card-icon">✏️</div>
+        <div class="card-title">手动建表</div>
+        <div class="card-desc">逐张创建表并定义字段<br>适合精确控制结构</div>
+      </div>
+    </div>
+
+    <!-- AI 建表输入区 -->
+    <div class="db-ai-section" id="dbAiSection">
+      <textarea class="db-ai-textarea" id="dbAiInput" placeholder="例如：&#10;一个电商系统，需要用户表、商品表、订单表、订单明细表。&#10;用户表包含账号、密码、昵称、手机号、注册时间。&#10;订单表关联用户和商品，记录下单时间、金额、状态。" onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){event.preventDefault();dbAiGenerate()}"></textarea>
+      <div class="db-ai-hint">💡 描述越详细，生成的表结构越精确。AI 将根据当前方言（<span id="dbAiDialect">Oracle</span>）生成合适的字段类型。按 Ctrl+Enter 快速生成。</div>
+    </div>
+
+    <!-- 手动建表区 -->
+    <div class="db-manual-section" id="dbManualSection">
+      <div class="db-create-row">
+        <input class="db-create-input" id="dbNewTableName" placeholder="输入表名，如 USER_INFO" spellcheck="false" onkeydown="if(event.key==='Enter')dbManualCreate()">
+        <button class="btn btn-primary" onclick="dbManualCreate()">创建表</button>
+      </div>
+      <div class="db-created-list" id="dbCreatedList"></div>
+    </div>
+
+    <!-- AI 建表进度面板 -->
+    <div class="db-ai-progress" id="dbAiProgress">
+      <div class="progress-header">
+        <div class="progress-spinner"></div>
+        <span class="progress-text" id="dbAiProgressText">准备发送请求...</span>
+        <span class="progress-elapsed" id="dbAiProgressTime"></span>
+      </div>
+      <div class="progress-steps" id="dbAiProgressSteps">
+        <div class="progress-step" id="dbAiStep1"><span class="step-icon">⏳</span><span>发送请求到 AI</span></div>
+        <div class="progress-step" id="dbAiStep2"><span class="step-icon">⏳</span><span>AI 分析需求并生成表结构</span></div>
+        <div class="progress-step" id="dbAiStep3"><span class="step-icon">⏳</span><span>解析和验证结果</span></div>
+      </div>
+      <div class="progress-error" id="dbAiProgressError">
+        <div id="dbAiErrorMsg"></div>
+        <div class="error-actions">
+          <button class="btn btn-ai" onclick="dbAiGenerate()">🔄 重试</button>
+          <button class="btn btn-ghost" onclick="resetDbAiProgress()">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeNewDbModal()">取消</button>
+      <button class="btn btn-ai" id="dbAiGenBtn" onclick="dbAiGenerate()" style="display:none">🤖 AI 生成</button>
+      <button class="btn btn-success" id="dbConfirmBtn" onclick="confirmNewDb()" style="display:none">✓ 确认并进入编辑</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- 开发时：外部链接 JS（注意：本地文件需协议支持） -->
+<!-- <script src="js/config.js"></script> -->
+<!-- <script src="js/utils.js"></script> -->
+<!-- <script src="js/dialect.js"></script> -->
+<!-- <script src="js/sql.js"></script> -->
+<!-- <script src="js/ai.js"></script> -->
+<!-- <script src="js/history.js"></script> -->
+<!-- <script src="js/storage.js"></script> -->
+<!-- <script src="js/editor.js"></script> -->
+<!-- <script src="js/app.js"></script> -->
+
+<!-- 发布时：内联 JS（构建脚本替换） -->
+<!-- <script> ... </script> -->
+</body>
+</html>
