@@ -536,6 +536,3 @@ rebuildTypeList();
 // 关闭弹窗点击遮罩
 document.getElementById('apiModal').addEventListener('click', function(e) { if (e.target === this) closeApiModal(); });
 document.getElementById('newDbModal').addEventListener('click', function(e) { if (e.target === this) closeNewDbModal(); });
-</script>
-</body>
-</html>

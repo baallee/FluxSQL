@@ -15,11 +15,11 @@ DIST_FILE="/Applications/workspace/FluxSQL/github/dist/index.html"
 # 读取 HTML 头部（到 <link> 标签之后，</head> 之前）
 HTML_HEAD=$(sed -n '1,9p' "$SRC_DIR/index.html")
 
-# 读取 CSS 内容（从 style.css，去掉首尾的 <style> 标签）
-CSS_CONTENT=$(sed -n '2,681p' "$SRC_DIR/css/style.css")
+# 读取 CSS 内容（style.css 现在是纯 CSS 文件）
+CSS_CONTENT=$(cat "$SRC_DIR/css/style.css")
 
-# 读取 HTML body 内容（从 body 标签后到 toast div 结束）
-HTML_BODY=$(sed -n '15,198p' "$SRC_DIR/index.html")
+# 读取 HTML body 内容（从 <body> 到 </body> 之间的内容）
+HTML_BODY=$(sed -n '/<body>/,/<\/body>/p' "$SRC_DIR/index.html" | sed '1d;$d')
 
 # 读取并合并 JS 文件（按依赖顺序）
 JS_FILES=(
@@ -40,13 +40,7 @@ for file in "${JS_FILES[@]}"; do
     JS_CONTENT+=$'\n\n'
     JS_CONTENT+="// ========== $file =========="
     JS_CONTENT+=$'\n'
-    # app.js 文件末尾包含 </script></body></html>，需要去掉最后 3 行
-    if [ "$file" = "app.js" ]; then
-      JS_LINES=$(wc -l < "$JS_PATH")
-      JS_CONTENT+=$(head -n $((JS_LINES - 3)) "$JS_PATH")
-    else
-      JS_CONTENT+=$(cat "$JS_PATH")
-    fi
+    JS_CONTENT+=$(cat "$JS_PATH")
   else
     echo "⚠️  警告：文件 $file 不存在，跳过"
   fi

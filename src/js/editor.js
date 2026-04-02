@@ -87,9 +87,9 @@ function renderEditor() {
   panel.innerHTML = `
     <div class="editor-header">
       <span class="editor-label">表名</span>
-      <input class="table-name-input" id="inp-tname" value="${t.name}" oninput="updateTableName(this.value)" spellcheck="false">
+      <input class="table-name-input" id="inp-tname" value="${escHtml(t.name)}" oninput="updateTableName(this.value)" spellcheck="false">
       <span class="editor-label">注释</span>
-      <input class="table-comment-input" id="inp-tcmt" value="${t.comment || ''}" placeholder="表说明..." oninput="updateTableComment(this.value)" spellcheck="false">
+      <input class="table-comment-input" id="inp-tcmt" value="${escHtml(t.comment || '')}" placeholder="表说明..." oninput="updateTableComment(this.value)" spellcheck="false">
       <button class="btn btn-danger" style="margin-left:8px;font-size:12px;padding:5px 10px" onclick="deleteTable(${idx})">🗑 删除表</button>
     </div>
     <div class="editor-body">
@@ -198,11 +198,11 @@ function fieldRowHTML(f, fi) {
     <tr class="field-row" data-fi="${fi}" draggable="true">
       <td><span class="drag-handle" title="拖拽排序">⠿</span></td>
       <td><div class="checkbox-wrap"><input type="checkbox" class="field-checkbox" ${f.pk ? 'checked' : ''} onchange="updateField(${fi},'pk',this.checked)" title="主键"></div></td>
-      <td><input class="field-input name-input" value="${f.name}" oninput="updateField(${fi},'name',this.value)" spellcheck="false"></td>
-      <td><input list="type-list" class="field-input type-input" value="${f.type}" oninput="updateField(${fi},'type',this.value)" spellcheck="false"></td>
+      <td><input class="field-input name-input" value="${escHtml(f.name)}" oninput="updateField(${fi},'name',this.value)" spellcheck="false"></td>
+      <td><input list="type-list" class="field-input type-input" value="${escHtml(f.type)}" oninput="updateField(${fi},'type',this.value)" spellcheck="false"></td>
       <td><div class="checkbox-wrap"><input type="checkbox" class="field-checkbox" ${f.nullable ? 'checked' : ''} onchange="updateField(${fi},'nullable',this.checked)" title="允许NULL"></div></td>
-      <td><input class="field-input mono" value="${f.defaultVal||''}" oninput="updateField(${fi},'defaultVal',this.value)" placeholder="—" spellcheck="false"></td>
-      <td><input class="field-input" value="${f.comment||''}" oninput="updateField(${fi},'comment',this.value)" placeholder="注释..." spellcheck="false"></td>
+      <td><input class="field-input mono" value="${escHtml(f.defaultVal||'')}" oninput="updateField(${fi},'defaultVal',this.value)" placeholder="—" spellcheck="false"></td>
+      <td><input class="field-input" value="${escHtml(f.comment||'')}" oninput="updateField(${fi},'comment',this.value)" placeholder="注释..." spellcheck="false"></td>
       <td><button class="del-btn" onclick="deleteField(${fi})" title="删除字段">✕</button></td>
     </tr>
   `;

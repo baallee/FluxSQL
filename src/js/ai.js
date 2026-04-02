@@ -18,6 +18,15 @@ const PROVIDER_DEFAULTS = {
 function loadApiConfig() { return JSON.parse(localStorage.getItem('sql_ai_config') || 'null'); }
 function saveApiConfigToStorage(cfg) { localStorage.setItem('sql_ai_config', JSON.stringify(cfg)); }
 
+// 解析 AI 返回的 JSON（带容错）
+function parseAiJson(jsonStr) {
+  try { return JSON.parse(jsonStr); } catch(e) {
+    const m = jsonStr.match(/\{[\s\S]*\}/);
+    if (m) { try { return JSON.parse(tryFixJson(m[0])); } catch(e2) { return JSON.parse(m[0]); } }
+    else throw new Error('返回内容无法解析为 JSON');
+  }
+}
+
 function openApiModal() {
   const cfg = loadApiConfig();
   if (cfg) {
@@ -188,12 +197,7 @@ async function handleAiSend(idx) {
     } else {
       // ── Act 模式：直接执行 ──
       let jsonStr = raw.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '');
-      let newTable;
-      try { newTable = JSON.parse(jsonStr); } catch(e) {
-        const m = jsonStr.match(/\{[\s\S]*\}/);
-        if (m) { try { newTable = JSON.parse(tryFixJson(m[0])); } catch(e2) { newTable = JSON.parse(m[0]); } }
-        else throw new Error('返回内容无法解析为 JSON');
-      }
+      const newTable = parseAiJson(jsonStr);
       if (!newTable.name || !Array.isArray(newTable.fields)) throw new Error('返回结构不合法');
       newTable.fields = newTable.fields.map(f => ({ ...f, id: f.id || uid() }));
 
@@ -338,12 +342,7 @@ async function executePlan(idx) {
   try {
     const raw = await callLLM(finalMessages, cfg.key, cfg.base, cfg.model);
     let jsonStr = raw.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '');
-    let newTable;
-    try { newTable = JSON.parse(jsonStr); } catch(e) {
-      const m = jsonStr.match(/\{[\s\S]*\}/);
-      if (m) { try { newTable = JSON.parse(tryFixJson(m[0])); } catch(e2) { newTable = JSON.parse(m[0]); } }
-      else throw new Error('返回内容无法解析为 JSON');
-    }
+    const newTable = parseAiJson(jsonStr);
     if (!newTable.name || !Array.isArray(newTable.fields)) throw new Error('返回结构不合法');
     newTable.fields = newTable.fields.map(f => ({ ...f, id: f.id || uid() }));
 
@@ -623,12 +622,7 @@ function handleAiSendRetry(idx, userMsg) {
       aiHistories[idx].push({ role: 'user', content: userMsg });
     } else {
       let jsonStr = raw.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '');
-      let newTable;
-      try { newTable = JSON.parse(jsonStr); } catch(e) {
-        const m = jsonStr.match(/\{[\s\S]*\}/);
-        if (m) { try { newTable = JSON.parse(tryFixJson(m[0])); } catch(e2) { newTable = JSON.parse(m[0]); } }
-        else throw new Error('返回内容无法解析为 JSON');
-      }
+      const newTable = parseAiJson(jsonStr);
       if (!newTable.name || !Array.isArray(newTable.fields)) throw new Error('返回结构不合法');
       newTable.fields = newTable.fields.map(f => ({ ...f, id: f.id || uid() }));
 
