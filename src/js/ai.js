@@ -206,29 +206,56 @@ async function handleAiSend(idx) {
 
       const oldFields = [...t.fields];
       const oldName = t.name;
-      tables[idx].name = newTable.name;
-      tables[idx].comment = newTable.comment || tables[idx].comment;
-      // 字段保护：自动补回 AI 遗漏的原始字段
-      const { fields: protectedFields, restored } = protectFields(oldFields, [...newTable.fields], userMsg);
-      tables[idx].fields = protectedFields;
-      newTable.fields = protectedFields;
+      const isNewTable = newTable.name.toLowerCase() !== oldName.toLowerCase();
+
+      let summary;
+      if (isNewTable) {
+        // AI 返回了新表名 → 创建新表
+        const createdTable = {
+          id: uid(),
+          name: newTable.name,
+          comment: newTable.comment || '',
+          fields: newTable.fields
+        };
+        tables.push(createdTable);
+        summary = `✅ 已创建新表 **${newTable.name}**，包含 ${newTable.fields.length} 个字段`;
+        logAction('ai-create', `AI 创建了新表 <span class="highlight">${escHtml(newTable.name)}</span>，包含 ${newTable.fields.length} 个字段`);
+      } else {
+        // 同表名 → 修改当前表
+        tables[idx].name = newTable.name;
+        tables[idx].comment = newTable.comment || tables[idx].comment;
+        // 字段保护：自动补回 AI 遗漏的原始字段
+        const { fields: protectedFields, restored } = protectFields(oldFields, [...newTable.fields], userMsg);
+        tables[idx].fields = protectedFields;
+        newTable.fields = protectedFields;
+
+        summary = buildChangeSummary(oldFields, newTable.fields, oldName, newTable.name);
+        if (restored.length) {
+          summary += `\n\n⚠️ 自动补回了 ${restored.length} 个被遗漏的字段：**${restored.join('、')}**`;
+          showToast(`⚠️ AI 遗漏了 ${restored.length} 个字段，已自动补回`);
+        }
+        logAction('ai-modify', `AI 修改了表 <span class="highlight">${escHtml(newTable.name)}</span>：${escHtml(summary.replace(/\*\*/g,''))}`);
+      }
       removeThinking(idx);
 
       // 执行后快照
       const postSnapId = saveAutoSnapshot('AI 改后');
-
-      let summary = buildChangeSummary(oldFields, newTable.fields, oldName, newTable.name);
-      if (restored.length) {
-        summary += `\n\n⚠️ 自动补回了 ${restored.length} 个被遗漏的字段：**${restored.join('、')}**`;
-        showToast(`⚠️ AI 遗漏了 ${restored.length} 个字段，已自动补回`);
-      }
       addAiMsg(idx, 'assistant', summary);
-      logAction('ai-modify', `AI 修改了表 <span class="highlight">${escHtml(newTable.name)}</span>：${escHtml(summary.replace(/\*\*/g,''))}`);
       if (!aiHistories[idx]) aiHistories[idx] = [];
       aiHistories[idx].push({ role: 'user', content: userMsg });
       aiHistories[idx].push({ role: 'assistant', content: summary });
-      renderEditor(); updatePreview();
-      showToast(`AI 已修改表结构 ✓（快照 #${preSnapId} → #${postSnapId}）`);
+
+      // 刷新列表并选中对应表
+      renderEditor();
+      if (isNewTable) {
+        currentTable = tables.length - 1;
+        renderTablePanel();
+        closeAIPanel();
+        showToast(`AI 已创建新表 ✓（快照 #${preSnapId} → #${postSnapId}）`);
+      } else {
+        updatePreview();
+        showToast(`AI 已修改表结构 ✓（快照 #${preSnapId} → #${postSnapId}）`);
+      }
     }
   } catch(e) {
     removeThinking(idx);
@@ -351,22 +378,41 @@ async function executePlan(idx) {
 
     const oldFields = [...t.fields];
     const oldName = t.name;
-    tables[idx].name = newTable.name;
-    tables[idx].comment = newTable.comment || tables[idx].comment;
-    // Plan 模式：根据计划中的删除列表判断，只补回不在删除列表中的遗漏字段
-    const delFieldNames = (plan.planItems || []).filter(i => i.type === 'del').map(i => i.text);
-    const { fields: protectedFields, restored } = protectFields(oldFields, [...newTable.fields], delFieldNames.length ? '删除 ' + delFieldNames.join(', ') : '');
-    tables[idx].fields = protectedFields;
-    newTable.fields = protectedFields;
+    const isNewTable = newTable.name.toLowerCase() !== oldName.toLowerCase();
+
+    let summary;
+    if (isNewTable) {
+      // AI 返回了新表名 → 创建新表
+      const createdTable = {
+        id: uid(),
+        name: newTable.name,
+        comment: newTable.comment || '',
+        fields: newTable.fields
+      };
+      tables.push(createdTable);
+      summary = `✅ 已创建新表 **${newTable.name}**，包含 ${newTable.fields.length} 个字段`;
+      logAction('ai-create', `AI 创建了新表 <span class="highlight">${escHtml(newTable.name)}</span>，包含 ${newTable.fields.length} 个字段`);
+    } else {
+      // 同表名 → 修改当前表
+      tables[idx].name = newTable.name;
+      tables[idx].comment = newTable.comment || tables[idx].comment;
+      // Plan 模式：根据计划中的删除列表判断，只补回不在删除列表中的遗漏字段
+      const delFieldNames = (plan.planItems || []).filter(i => i.type === 'del').map(i => i.text);
+      const { fields: protectedFields, restored } = protectFields(oldFields, [...newTable.fields], delFieldNames.length ? '删除 ' + delFieldNames.join(', ') : '');
+      tables[idx].fields = protectedFields;
+      newTable.fields = protectedFields;
+
+      summary = buildChangeSummary(oldFields, newTable.fields, oldName, newTable.name);
+      if (restored.length) {
+        summary += `\n\n⚠️ 自动补回了 ${restored.length} 个被遗漏的字段：**${restored.join('、')}**`;
+        showToast(`⚠️ AI 遗漏了 ${restored.length} 个字段，已自动补回`);
+      }
+      logAction('ai-modify', `AI 修改了表 <span class="highlight">${escHtml(newTable.name)}</span>：${escHtml(summary.replace(/\*\*/g,''))}`);
+    }
 
     // 执行后快照
     const postSnapId = saveAutoSnapshot('AI 改后');
 
-    let summary = buildChangeSummary(oldFields, newTable.fields, oldName, newTable.name);
-    if (restored.length) {
-      summary += `\n\n⚠️ 自动补回了 ${restored.length} 个被遗漏的字段：**${restored.join('、')}**`;
-      showToast(`⚠️ AI 遗漏了 ${restored.length} 个字段，已自动补回`);
-    }
     addAiMsg(idx, 'assistant', summary);
     // 标记 plan 卡片为已执行
     const planCard = document.querySelector(`#ai-history-${idx} [data-msg-type="plan"]`);
@@ -374,12 +420,21 @@ async function executePlan(idx) {
       const actions = planCard.querySelector('.ai-plan-actions');
       if (actions) actions.innerHTML = '<span style="font-size:11px;color:var(--green);font-weight:600">✓ 已执行（快照 #' + preSnapId + ' → #' + postSnapId + '）</span>';
     }
-    logAction('ai-modify', `AI 修改了表 <span class="highlight">${escHtml(newTable.name)}</span>：${escHtml(summary.replace(/\*\*/g,''))}`);
     if (!aiHistories[idx]) aiHistories[idx] = [];
     aiHistories[idx].push({ role: 'assistant', content: summary });
-    renderEditor(); updatePreview();
+
+    // 刷新列表并选中对应表
+    renderEditor();
+    if (isNewTable) {
+      currentTable = tables.length - 1;
+      renderTablePanel();
+      closeAIPanel();
+      showToast(`AI 已创建新表 ✓（快照 #${preSnapId} → #${postSnapId}）`);
+    } else {
+      updatePreview();
+      showToast(`AI 已修改表结构 ✓（快照 #${preSnapId} → #${postSnapId}）`);
+    }
     delete pendingPlan[idx];
-    showToast(`AI 已修改表结构 ✓（快照 #${preSnapId} → #${postSnapId}）`);
   } catch(e) {
     addAiError(idx, '执行出错：' + e.message, () => executePlan(idx));
     // 恢复按钮
@@ -629,27 +684,55 @@ function handleAiSendRetry(idx, userMsg) {
       const preSnapId = saveAutoSnapshot('AI 改前');
       const oldFields = [...t.fields];
       const oldName = t.name;
-      tables[idx].name = newTable.name;
-      tables[idx].comment = newTable.comment || tables[idx].comment;
-      // 字段保护：自动补回 AI 遗漏的原始字段
-      const { fields: protectedFields, restored } = protectFields(oldFields, [...newTable.fields], userMsg);
-      tables[idx].fields = protectedFields;
-      newTable.fields = protectedFields;
+      const isNewTable = newTable.name.toLowerCase() !== oldName.toLowerCase();
+
+      let summary;
+      if (isNewTable) {
+        // AI 返回了新表名 → 创建新表
+        const createdTable = {
+          id: uid(),
+          name: newTable.name,
+          comment: newTable.comment || '',
+          fields: newTable.fields
+        };
+        tables.push(createdTable);
+        summary = `✅ 已创建新表 **${newTable.name}**，包含 ${newTable.fields.length} 个字段`;
+        logAction('ai-create', `AI 创建了新表 <span class="highlight">${escHtml(newTable.name)}</span>，包含 ${newTable.fields.length} 个字段`);
+      } else {
+        // 同表名 → 修改当前表
+        tables[idx].name = newTable.name;
+        tables[idx].comment = newTable.comment || tables[idx].comment;
+        // 字段保护：自动补回 AI 遗漏的原始字段
+        const { fields: protectedFields, restored } = protectFields(oldFields, [...newTable.fields], userMsg);
+        tables[idx].fields = protectedFields;
+        newTable.fields = protectedFields;
+
+        summary = buildChangeSummary(oldFields, newTable.fields, oldName, newTable.name);
+        if (restored.length) {
+          summary += `\n\n⚠️ 自动补回了 ${restored.length} 个被遗漏的字段：**${restored.join('、')}**`;
+          showToast(`⚠️ AI 遗漏了 ${restored.length} 个字段，已自动补回`);
+        }
+        logAction('ai-modify', `AI 修改了表 <span class="highlight">${escHtml(newTable.name)}</span>：${escHtml(summary.replace(/\*\*/g,''))}`);
+      }
       removeThinking(idx);
 
       const postSnapId = saveAutoSnapshot('AI 改后');
-      let summary = buildChangeSummary(oldFields, newTable.fields, oldName, newTable.name);
-      if (restored.length) {
-        summary += `\n\n⚠️ 自动补回了 ${restored.length} 个被遗漏的字段：**${restored.join('、')}**`;
-        showToast(`⚠️ AI 遗漏了 ${restored.length} 个字段，已自动补回`);
-      }
       addAiMsg(idx, 'assistant', summary);
-      logAction('ai-modify', `AI 修改了表 <span class="highlight">${escHtml(newTable.name)}</span>：${escHtml(summary.replace(/\*\*/g,''))}`);
       if (!aiHistories[idx]) aiHistories[idx] = [];
       aiHistories[idx].push({ role: 'user', content: userMsg });
       aiHistories[idx].push({ role: 'assistant', content: summary });
-      renderEditor(); updatePreview();
-      showToast(`AI 已修改表结构 ✓（快照 #${preSnapId} → #${postSnapId}）`);
+
+      // 刷新列表并选中对应表
+      renderEditor();
+      if (isNewTable) {
+        currentTable = tables.length - 1;
+        renderTablePanel();
+        closeAIPanel();
+        showToast(`AI 已创建新表 ✓（快照 #${preSnapId} → #${postSnapId}）`);
+      } else {
+        updatePreview();
+        showToast(`AI 已修改表结构 ✓（快照 #${preSnapId} → #${postSnapId}）`);
+      }
     }
   }).catch(e => {
     removeThinking(idx);

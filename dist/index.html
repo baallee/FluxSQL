@@ -688,7 +688,6 @@
   .diff-field-table .new-val { color: var(--green); font-weight: 600; }
   .diff-field-table .unchanged { color: var(--text3); }
 </style>
-</style>
 </head>
 <body>
 
@@ -875,6 +874,20 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- 开发时：外部链接 JS（注意：本地文件需协议支持） -->
+<!-- <script src="js/config.js"></script> -->
+<!-- <script src="js/utils.js"></script> -->
+<!-- <script src="js/dialect.js"></script> -->
+<!-- <script src="js/sql.js"></script> -->
+<!-- <script src="js/ai.js"></script> -->
+<!-- <script src="js/history.js"></script> -->
+<!-- <script src="js/storage.js"></script> -->
+<!-- <script src="js/editor.js"></script> -->
+<!-- <script src="js/app.js"></script> -->
+
+<!-- 发布时：内联 JS（构建脚本替换） -->
+<!-- <script> ... </script> -->
 <script>
 
 
@@ -1653,6 +1666,15 @@ const PROVIDER_DEFAULTS = {
 function loadApiConfig() { return JSON.parse(localStorage.getItem('sql_ai_config') || 'null'); }
 function saveApiConfigToStorage(cfg) { localStorage.setItem('sql_ai_config', JSON.stringify(cfg)); }
 
+// 解析 AI 返回的 JSON（带容错）
+function parseAiJson(jsonStr) {
+  try { return JSON.parse(jsonStr); } catch(e) {
+    const m = jsonStr.match(/\{[\s\S]*\}/);
+    if (m) { try { return JSON.parse(tryFixJson(m[0])); } catch(e2) { return JSON.parse(m[0]); } }
+    else throw new Error('返回内容无法解析为 JSON');
+  }
+}
+
 function openApiModal() {
   const cfg = loadApiConfig();
   if (cfg) {
@@ -1823,12 +1845,7 @@ async function handleAiSend(idx) {
     } else {
       // ── Act 模式：直接执行 ──
       let jsonStr = raw.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '');
-      let newTable;
-      try { newTable = JSON.parse(jsonStr); } catch(e) {
-        const m = jsonStr.match(/\{[\s\S]*\}/);
-        if (m) { try { newTable = JSON.parse(tryFixJson(m[0])); } catch(e2) { newTable = JSON.parse(m[0]); } }
-        else throw new Error('返回内容无法解析为 JSON');
-      }
+      const newTable = parseAiJson(jsonStr);
       if (!newTable.name || !Array.isArray(newTable.fields)) throw new Error('返回结构不合法');
       newTable.fields = newTable.fields.map(f => ({ ...f, id: f.id || uid() }));
 
@@ -1837,29 +1854,56 @@ async function handleAiSend(idx) {
 
       const oldFields = [...t.fields];
       const oldName = t.name;
-      tables[idx].name = newTable.name;
-      tables[idx].comment = newTable.comment || tables[idx].comment;
-      // 字段保护：自动补回 AI 遗漏的原始字段
-      const { fields: protectedFields, restored } = protectFields(oldFields, [...newTable.fields], userMsg);
-      tables[idx].fields = protectedFields;
-      newTable.fields = protectedFields;
+      const isNewTable = newTable.name.toLowerCase() !== oldName.toLowerCase();
+
+      let summary;
+      if (isNewTable) {
+        // AI 返回了新表名 → 创建新表
+        const createdTable = {
+          id: uid(),
+          name: newTable.name,
+          comment: newTable.comment || '',
+          fields: newTable.fields
+        };
+        tables.push(createdTable);
+        summary = `✅ 已创建新表 **${newTable.name}**，包含 ${newTable.fields.length} 个字段`;
+        logAction('ai-create', `AI 创建了新表 <span class="highlight">${escHtml(newTable.name)}</span>，包含 ${newTable.fields.length} 个字段`);
+      } else {
+        // 同表名 → 修改当前表
+        tables[idx].name = newTable.name;
+        tables[idx].comment = newTable.comment || tables[idx].comment;
+        // 字段保护：自动补回 AI 遗漏的原始字段
+        const { fields: protectedFields, restored } = protectFields(oldFields, [...newTable.fields], userMsg);
+        tables[idx].fields = protectedFields;
+        newTable.fields = protectedFields;
+
+        summary = buildChangeSummary(oldFields, newTable.fields, oldName, newTable.name);
+        if (restored.length) {
+          summary += `\n\n⚠️ 自动补回了 ${restored.length} 个被遗漏的字段：**${restored.join('、')}**`;
+          showToast(`⚠️ AI 遗漏了 ${restored.length} 个字段，已自动补回`);
+        }
+        logAction('ai-modify', `AI 修改了表 <span class="highlight">${escHtml(newTable.name)}</span>：${escHtml(summary.replace(/\*\*/g,''))}`);
+      }
       removeThinking(idx);
 
       // 执行后快照
       const postSnapId = saveAutoSnapshot('AI 改后');
-
-      let summary = buildChangeSummary(oldFields, newTable.fields, oldName, newTable.name);
-      if (restored.length) {
-        summary += `\n\n⚠️ 自动补回了 ${restored.length} 个被遗漏的字段：**${restored.join('、')}**`;
-        showToast(`⚠️ AI 遗漏了 ${restored.length} 个字段，已自动补回`);
-      }
       addAiMsg(idx, 'assistant', summary);
-      logAction('ai-modify', `AI 修改了表 <span class="highlight">${escHtml(newTable.name)}</span>：${escHtml(summary.replace(/\*\*/g,''))}`);
       if (!aiHistories[idx]) aiHistories[idx] = [];
       aiHistories[idx].push({ role: 'user', content: userMsg });
       aiHistories[idx].push({ role: 'assistant', content: summary });
-      renderEditor(); updatePreview();
-      showToast(`AI 已修改表结构 ✓（快照 #${preSnapId} → #${postSnapId}）`);
+
+      // 刷新列表并选中对应表
+      renderEditor();
+      if (isNewTable) {
+        currentTable = tables.length - 1;
+        renderTablePanel();
+        closeAIPanel();
+        showToast(`AI 已创建新表 ✓（快照 #${preSnapId} → #${postSnapId}）`);
+      } else {
+        updatePreview();
+        showToast(`AI 已修改表结构 ✓（快照 #${preSnapId} → #${postSnapId}）`);
+      }
     }
   } catch(e) {
     removeThinking(idx);
@@ -1973,12 +2017,7 @@ async function executePlan(idx) {
   try {
     const raw = await callLLM(finalMessages, cfg.key, cfg.base, cfg.model);
     let jsonStr = raw.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '');
-    let newTable;
-    try { newTable = JSON.parse(jsonStr); } catch(e) {
-      const m = jsonStr.match(/\{[\s\S]*\}/);
-      if (m) { try { newTable = JSON.parse(tryFixJson(m[0])); } catch(e2) { newTable = JSON.parse(m[0]); } }
-      else throw new Error('返回内容无法解析为 JSON');
-    }
+    const newTable = parseAiJson(jsonStr);
     if (!newTable.name || !Array.isArray(newTable.fields)) throw new Error('返回结构不合法');
     newTable.fields = newTable.fields.map(f => ({ ...f, id: f.id || uid() }));
 
@@ -1987,22 +2026,41 @@ async function executePlan(idx) {
 
     const oldFields = [...t.fields];
     const oldName = t.name;
-    tables[idx].name = newTable.name;
-    tables[idx].comment = newTable.comment || tables[idx].comment;
-    // Plan 模式：根据计划中的删除列表判断，只补回不在删除列表中的遗漏字段
-    const delFieldNames = (plan.planItems || []).filter(i => i.type === 'del').map(i => i.text);
-    const { fields: protectedFields, restored } = protectFields(oldFields, [...newTable.fields], delFieldNames.length ? '删除 ' + delFieldNames.join(', ') : '');
-    tables[idx].fields = protectedFields;
-    newTable.fields = protectedFields;
+    const isNewTable = newTable.name.toLowerCase() !== oldName.toLowerCase();
+
+    let summary;
+    if (isNewTable) {
+      // AI 返回了新表名 → 创建新表
+      const createdTable = {
+        id: uid(),
+        name: newTable.name,
+        comment: newTable.comment || '',
+        fields: newTable.fields
+      };
+      tables.push(createdTable);
+      summary = `✅ 已创建新表 **${newTable.name}**，包含 ${newTable.fields.length} 个字段`;
+      logAction('ai-create', `AI 创建了新表 <span class="highlight">${escHtml(newTable.name)}</span>，包含 ${newTable.fields.length} 个字段`);
+    } else {
+      // 同表名 → 修改当前表
+      tables[idx].name = newTable.name;
+      tables[idx].comment = newTable.comment || tables[idx].comment;
+      // Plan 模式：根据计划中的删除列表判断，只补回不在删除列表中的遗漏字段
+      const delFieldNames = (plan.planItems || []).filter(i => i.type === 'del').map(i => i.text);
+      const { fields: protectedFields, restored } = protectFields(oldFields, [...newTable.fields], delFieldNames.length ? '删除 ' + delFieldNames.join(', ') : '');
+      tables[idx].fields = protectedFields;
+      newTable.fields = protectedFields;
+
+      summary = buildChangeSummary(oldFields, newTable.fields, oldName, newTable.name);
+      if (restored.length) {
+        summary += `\n\n⚠️ 自动补回了 ${restored.length} 个被遗漏的字段：**${restored.join('、')}**`;
+        showToast(`⚠️ AI 遗漏了 ${restored.length} 个字段，已自动补回`);
+      }
+      logAction('ai-modify', `AI 修改了表 <span class="highlight">${escHtml(newTable.name)}</span>：${escHtml(summary.replace(/\*\*/g,''))}`);
+    }
 
     // 执行后快照
     const postSnapId = saveAutoSnapshot('AI 改后');
 
-    let summary = buildChangeSummary(oldFields, newTable.fields, oldName, newTable.name);
-    if (restored.length) {
-      summary += `\n\n⚠️ 自动补回了 ${restored.length} 个被遗漏的字段：**${restored.join('、')}**`;
-      showToast(`⚠️ AI 遗漏了 ${restored.length} 个字段，已自动补回`);
-    }
     addAiMsg(idx, 'assistant', summary);
     // 标记 plan 卡片为已执行
     const planCard = document.querySelector(`#ai-history-${idx} [data-msg-type="plan"]`);
@@ -2010,12 +2068,21 @@ async function executePlan(idx) {
       const actions = planCard.querySelector('.ai-plan-actions');
       if (actions) actions.innerHTML = '<span style="font-size:11px;color:var(--green);font-weight:600">✓ 已执行（快照 #' + preSnapId + ' → #' + postSnapId + '）</span>';
     }
-    logAction('ai-modify', `AI 修改了表 <span class="highlight">${escHtml(newTable.name)}</span>：${escHtml(summary.replace(/\*\*/g,''))}`);
     if (!aiHistories[idx]) aiHistories[idx] = [];
     aiHistories[idx].push({ role: 'assistant', content: summary });
-    renderEditor(); updatePreview();
+
+    // 刷新列表并选中对应表
+    renderEditor();
+    if (isNewTable) {
+      currentTable = tables.length - 1;
+      renderTablePanel();
+      closeAIPanel();
+      showToast(`AI 已创建新表 ✓（快照 #${preSnapId} → #${postSnapId}）`);
+    } else {
+      updatePreview();
+      showToast(`AI 已修改表结构 ✓（快照 #${preSnapId} → #${postSnapId}）`);
+    }
     delete pendingPlan[idx];
-    showToast(`AI 已修改表结构 ✓（快照 #${preSnapId} → #${postSnapId}）`);
   } catch(e) {
     addAiError(idx, '执行出错：' + e.message, () => executePlan(idx));
     // 恢复按钮
@@ -2258,39 +2325,62 @@ function handleAiSendRetry(idx, userMsg) {
       aiHistories[idx].push({ role: 'user', content: userMsg });
     } else {
       let jsonStr = raw.trim().replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/```\s*$/i, '');
-      let newTable;
-      try { newTable = JSON.parse(jsonStr); } catch(e) {
-        const m = jsonStr.match(/\{[\s\S]*\}/);
-        if (m) { try { newTable = JSON.parse(tryFixJson(m[0])); } catch(e2) { newTable = JSON.parse(m[0]); } }
-        else throw new Error('返回内容无法解析为 JSON');
-      }
+      const newTable = parseAiJson(jsonStr);
       if (!newTable.name || !Array.isArray(newTable.fields)) throw new Error('返回结构不合法');
       newTable.fields = newTable.fields.map(f => ({ ...f, id: f.id || uid() }));
 
       const preSnapId = saveAutoSnapshot('AI 改前');
       const oldFields = [...t.fields];
       const oldName = t.name;
-      tables[idx].name = newTable.name;
-      tables[idx].comment = newTable.comment || tables[idx].comment;
-      // 字段保护：自动补回 AI 遗漏的原始字段
-      const { fields: protectedFields, restored } = protectFields(oldFields, [...newTable.fields], userMsg);
-      tables[idx].fields = protectedFields;
-      newTable.fields = protectedFields;
+      const isNewTable = newTable.name.toLowerCase() !== oldName.toLowerCase();
+
+      let summary;
+      if (isNewTable) {
+        // AI 返回了新表名 → 创建新表
+        const createdTable = {
+          id: uid(),
+          name: newTable.name,
+          comment: newTable.comment || '',
+          fields: newTable.fields
+        };
+        tables.push(createdTable);
+        summary = `✅ 已创建新表 **${newTable.name}**，包含 ${newTable.fields.length} 个字段`;
+        logAction('ai-create', `AI 创建了新表 <span class="highlight">${escHtml(newTable.name)}</span>，包含 ${newTable.fields.length} 个字段`);
+      } else {
+        // 同表名 → 修改当前表
+        tables[idx].name = newTable.name;
+        tables[idx].comment = newTable.comment || tables[idx].comment;
+        // 字段保护：自动补回 AI 遗漏的原始字段
+        const { fields: protectedFields, restored } = protectFields(oldFields, [...newTable.fields], userMsg);
+        tables[idx].fields = protectedFields;
+        newTable.fields = protectedFields;
+
+        summary = buildChangeSummary(oldFields, newTable.fields, oldName, newTable.name);
+        if (restored.length) {
+          summary += `\n\n⚠️ 自动补回了 ${restored.length} 个被遗漏的字段：**${restored.join('、')}**`;
+          showToast(`⚠️ AI 遗漏了 ${restored.length} 个字段，已自动补回`);
+        }
+        logAction('ai-modify', `AI 修改了表 <span class="highlight">${escHtml(newTable.name)}</span>：${escHtml(summary.replace(/\*\*/g,''))}`);
+      }
       removeThinking(idx);
 
       const postSnapId = saveAutoSnapshot('AI 改后');
-      let summary = buildChangeSummary(oldFields, newTable.fields, oldName, newTable.name);
-      if (restored.length) {
-        summary += `\n\n⚠️ 自动补回了 ${restored.length} 个被遗漏的字段：**${restored.join('、')}**`;
-        showToast(`⚠️ AI 遗漏了 ${restored.length} 个字段，已自动补回`);
-      }
       addAiMsg(idx, 'assistant', summary);
-      logAction('ai-modify', `AI 修改了表 <span class="highlight">${escHtml(newTable.name)}</span>：${escHtml(summary.replace(/\*\*/g,''))}`);
       if (!aiHistories[idx]) aiHistories[idx] = [];
       aiHistories[idx].push({ role: 'user', content: userMsg });
       aiHistories[idx].push({ role: 'assistant', content: summary });
-      renderEditor(); updatePreview();
-      showToast(`AI 已修改表结构 ✓（快照 #${preSnapId} → #${postSnapId}）`);
+
+      // 刷新列表并选中对应表
+      renderEditor();
+      if (isNewTable) {
+        currentTable = tables.length - 1;
+        renderTablePanel();
+        closeAIPanel();
+        showToast(`AI 已创建新表 ✓（快照 #${preSnapId} → #${postSnapId}）`);
+      } else {
+        updatePreview();
+        showToast(`AI 已修改表结构 ✓（快照 #${preSnapId} → #${postSnapId}）`);
+      }
     }
   }).catch(e => {
     removeThinking(idx);
@@ -2756,9 +2846,9 @@ function renderEditor() {
   panel.innerHTML = `
     <div class="editor-header">
       <span class="editor-label">表名</span>
-      <input class="table-name-input" id="inp-tname" value="${t.name}" oninput="updateTableName(this.value)" spellcheck="false">
+      <input class="table-name-input" id="inp-tname" value="${escHtml(t.name)}" oninput="updateTableName(this.value)" spellcheck="false">
       <span class="editor-label">注释</span>
-      <input class="table-comment-input" id="inp-tcmt" value="${t.comment || ''}" placeholder="表说明..." oninput="updateTableComment(this.value)" spellcheck="false">
+      <input class="table-comment-input" id="inp-tcmt" value="${escHtml(t.comment || '')}" placeholder="表说明..." oninput="updateTableComment(this.value)" spellcheck="false">
       <button class="btn btn-danger" style="margin-left:8px;font-size:12px;padding:5px 10px" onclick="deleteTable(${idx})">🗑 删除表</button>
     </div>
     <div class="editor-body">
@@ -2867,11 +2957,11 @@ function fieldRowHTML(f, fi) {
     <tr class="field-row" data-fi="${fi}" draggable="true">
       <td><span class="drag-handle" title="拖拽排序">⠿</span></td>
       <td><div class="checkbox-wrap"><input type="checkbox" class="field-checkbox" ${f.pk ? 'checked' : ''} onchange="updateField(${fi},'pk',this.checked)" title="主键"></div></td>
-      <td><input class="field-input name-input" value="${f.name}" oninput="updateField(${fi},'name',this.value)" spellcheck="false"></td>
-      <td><input list="type-list" class="field-input type-input" value="${f.type}" oninput="updateField(${fi},'type',this.value)" spellcheck="false"></td>
+      <td><input class="field-input name-input" value="${escHtml(f.name)}" oninput="updateField(${fi},'name',this.value)" spellcheck="false"></td>
+      <td><input list="type-list" class="field-input type-input" value="${escHtml(f.type)}" oninput="updateField(${fi},'type',this.value)" spellcheck="false"></td>
       <td><div class="checkbox-wrap"><input type="checkbox" class="field-checkbox" ${f.nullable ? 'checked' : ''} onchange="updateField(${fi},'nullable',this.checked)" title="允许NULL"></div></td>
-      <td><input class="field-input mono" value="${f.defaultVal||''}" oninput="updateField(${fi},'defaultVal',this.value)" placeholder="—" spellcheck="false"></td>
-      <td><input class="field-input" value="${f.comment||''}" oninput="updateField(${fi},'comment',this.value)" placeholder="注释..." spellcheck="false"></td>
+      <td><input class="field-input mono" value="${escHtml(f.defaultVal||'')}" oninput="updateField(${fi},'defaultVal',this.value)" placeholder="—" spellcheck="false"></td>
+      <td><input class="field-input" value="${escHtml(f.comment||'')}" oninput="updateField(${fi},'comment',this.value)" placeholder="注释..." spellcheck="false"></td>
       <td><button class="del-btn" onclick="deleteField(${fi})" title="删除字段">✕</button></td>
     </tr>
   `;
